@@ -16,6 +16,7 @@ export default function QuickBillPage() {
   const [paymentReceived, setPaymentReceived] = useState("0");
   const [billDate, setBillDate] = useState("2026-09-09");
   const [scrapItem, setScrapItem] = useState("Ferrous metal");
+  const [unit, setUnit] = useState("Tonne (MT)");
   const [showPreview, setShowPreview] = useState(false);
   const [savedMessage, setSavedMessage] = useState("");
   const [businessName, setBusinessName] = useState("Your business name");
@@ -24,7 +25,7 @@ export default function QuickBillPage() {
   const total = (Number(quantity) || 0) * (Number(rate) || 0);
   const remaining = Math.max(total - (Number(paymentReceived) || 0), 0);
   useEffect(() => { const saved = localStorage.getItem("scrapflow-business-profile"); if (saved) { const details = JSON.parse(saved) as { businessName?: string; ownerName?: string }; setBusinessName(details.businessName || "Your business name"); setOwnerName(details.ownerName || "Business owner"); } }, []);
-  const whatsappMessage = `Hello ${company}, your ${billType.toLowerCase()} from ${businessName} is ${money.format(total)}. Paid now: ${money.format(Number(paymentReceived) || 0)}. Remaining: ${money.format(remaining)}. Contact: ${ownerName}.`;
+  const whatsappMessage = `Hello ${company}, your ${billType.toLowerCase()} from ${businessName} is ${quantity} ${unit} of ${scrapItem} at ${money.format(Number(rate) || 0)} per ${unit}. Total: ${money.format(total)}. Paid now: ${money.format(Number(paymentReceived) || 0)}. Remaining: ${money.format(remaining)}. Contact: ${ownerName}.`;
   const whatsappLink = `https://web.whatsapp.com/send?phone=${mobile.replace(/\D/g, "")}&text=${encodeURIComponent(whatsappMessage)}`;
   const downloadPdf = () => {
     if (!company || total <= 0) { setSavedMessage("Please select a company and enter a quantity and rate greater than zero."); return; }
@@ -51,7 +52,7 @@ export default function QuickBillPage() {
     pdf.setFontSize(9); pdf.setTextColor(45, 78, 68); pdf.text(itemLines, 5, tableY + 10);
     const itemEnd = tableY + 10 + (itemLines.length - 1) * 4;
     right(pdfMoney(total), itemEnd, 9);
-    left(`${quantity} x ${pdfMoney(Number(rate) || 0)}`, itemEnd + 6, 8);
+    left(`${quantity} ${unit} x ${pdfMoney(Number(rate) || 0)} / ${unit}`, itemEnd + 6, 8);
     line(itemEnd + 11);
     left("Bill total", itemEnd + 19, 9); right(pdfMoney(total), itemEnd + 19, 9);
     left("Paid now", itemEnd + 27, 9); right(pdfMoney(Number(paymentReceived) || 0), itemEnd + 27, 9);
@@ -65,7 +66,7 @@ export default function QuickBillPage() {
   const saveBill = () => {
     if (!company || total <= 0) { setSavedMessage("Please select a company and enter a quantity and rate greater than zero."); return; }
     const existingBills = JSON.parse(localStorage.getItem("scrapflow-bills") || "[]") as object[];
-    existingBills.unshift({ id: Date.now(), billNumber, businessName, ownerName, billType, company, mobile, billDate, scrapItem, quantity: Number(quantity), rate: Number(rate), total, paymentReceived: Number(paymentReceived) || 0, remaining, createdAt: new Date().toISOString() });
+    existingBills.unshift({ id: Date.now(), billNumber, businessName, ownerName, billType, company, mobile, billDate, scrapItem, unit, quantity: Number(quantity), rate: Number(rate), total, paymentReceived: Number(paymentReceived) || 0, remaining, createdAt: new Date().toISOString() });
     localStorage.setItem("scrapflow-bills", JSON.stringify(existingBills));
     setSavedMessage(`Bill saved successfully for ${company}.`);
     setShowPreview(true);
@@ -78,12 +79,13 @@ export default function QuickBillPage() {
       <label>Company WhatsApp number<input value={mobile} onChange={(event) => setMobile(event.target.value)} placeholder="Example: 919876543210" /></label>
       <label>Bill date<input type="date" value={billDate} onChange={(event) => setBillDate(event.target.value)} /></label>
       <label>Scrap item<select value={scrapItem} onChange={(event) => setScrapItem(event.target.value)}><option>Ferrous metal</option><option>Aluminium</option><option>Copper wire</option><option>Paper & cardboard</option></select></label>
+      <label>Measurement unit<select value={unit} onChange={(event) => setUnit(event.target.value)}><option>Tonne (MT)</option><option>Kilogram (kg)</option><option>Long ton</option><option>Gross ton</option><option>Pound (lb)</option></select></label>
       <label>Quantity<input type="number" min="0" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>
-      <label>Rate per unit<input type="number" min="0" value={rate} onChange={(event) => setRate(event.target.value)} /></label>
+      <label>Rate per {unit}<input type="number" min="0" value={rate} onChange={(event) => setRate(event.target.value)} /></label>
       <label>Payment received now<input type="number" min="0" value={paymentReceived} onChange={(event) => setPaymentReceived(event.target.value)} /></label>
       <label>Payment status<select><option>Part payment / udhari</option><option>Fully paid</option><option>Pay later</option></select></label>
     </div><div className={styles.billTotal}><span>Total bill amount</span><strong>{money.format(total)}</strong><small>{billType} · Remaining: {money.format(remaining)} will be tracked in Udhari / Outstanding</small></div><div className={styles.billActions}><button className={styles.saveButton} type="button" onClick={saveBill}>Save quick bill</button><button className={styles.secondaryButton} type="button" onClick={() => setShowPreview((current) => !current)}>{showPreview ? "Hide bill" : "View bill"}</button><button className={styles.pdfButton} type="button" onClick={downloadPdf}>Download PDF</button><a className={styles.whatsappButton} href={whatsappLink} target="_blank" rel="noreferrer">Open WhatsApp Web</a></div>{savedMessage && <p className={savedMessage.includes("successfully") ? styles.successMessage : styles.errorMessage}>{savedMessage}</p>}</section>
-    {showPreview && <section className={styles.billPreview}><div className={styles.billPreviewHeader}><div><p className={styles.eyebrow}>BILL PREVIEW · {billNumber}</p><h2>{businessName}</h2><small>From {ownerName} · Bill to {company} · {billDate}</small></div><strong>{money.format(total)}</strong></div><div className={styles.previewLine}><span>{scrapItem} · {billType}</span><span>{quantity} × {money.format(Number(rate) || 0)}</span></div><div className={styles.previewLine}><span>Paid now</span><strong>{money.format(Number(paymentReceived) || 0)}</strong></div><div className={styles.previewLine}><span>Remaining udhari</span><strong>{money.format(remaining)}</strong></div><p className={styles.previewNote}>This bill can be downloaded as a small receipt PDF or shared with {company} on WhatsApp Web.</p></section>}
+    {showPreview && <section className={styles.billPreview}><div className={styles.billPreviewHeader}><div><p className={styles.eyebrow}>BILL PREVIEW · {billNumber}</p><h2>{businessName}</h2><small>From {ownerName} · Bill to {company} · {billDate}</small></div><strong>{money.format(total)}</strong></div><div className={styles.previewLine}><span>{scrapItem} · {billType}</span><span>{quantity} {unit} × {money.format(Number(rate) || 0)}</span></div><div className={styles.previewLine}><span>Paid now</span><strong>{money.format(Number(paymentReceived) || 0)}</strong></div><div className={styles.previewLine}><span>Remaining udhari</span><strong>{money.format(remaining)}</strong></div><p className={styles.previewNote}>This bill can be downloaded as a small receipt PDF or shared with {company} on WhatsApp Web.</p></section>}
     <section className={styles.panel}><div className={styles.panelHeader}><div><h2>When to use Quick bill</h2><p>For full purchases or deliveries with more details, use Buy scrap or Sell scrap.</p></div></div><div className={styles.helpGrid}><div><strong>Sale / bill to buyer</strong><small>Reduces available stock and adds money to receive.</small></div><div><strong>Purchase / bill from supplier</strong><small>Increases available stock and adds money to pay.</small></div></div></section>
   </FeaturePage>;
 }
