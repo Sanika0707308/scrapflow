@@ -10,8 +10,8 @@ const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR
 
 export default function QuickBillPage() {
   const [billType, setBillType] = useState("Sale / bill to buyer");
-  const [company, setCompany] = useState("GreenEarth Industries");
-  const [mobile, setMobile] = useState("919876543210");
+  const [company, setCompany] = useState("");
+  const [mobile, setMobile] = useState("");
   const [quantity, setQuantity] = useState("100");
   const [rate, setRate] = useState("40");
   const [paymentReceived, setPaymentReceived] = useState("0");
@@ -76,8 +76,8 @@ export default function QuickBillPage() {
   return <FeaturePage active="/quick-bill" eyebrow="FAST ENTRY" title="Quick bill" description="Make a small bill directly for a company without opening the full purchase or sale register.">
     <section className={styles.panel} id="quick-bill-form"><div className={styles.panelHeader}><div><h2>Make a quick bill</h2><p>Use this for a simple company transaction. Stock and outstanding will be updated when connected to the database.</p></div><span className={`${styles.status} ${styles.blue}`}>Simple entry</span></div><div className={styles.formGrid}>
       <label>Bill type<select value={billType} onChange={(event) => setBillType(event.target.value)}><option>Sale / bill to buyer</option><option>Purchase / bill from supplier</option></select></label>
-      <label>Company<select value={company} onChange={(event) => setCompany(event.target.value)}><option>GreenEarth Industries</option><option>Shree Metals Pvt. Ltd.</option><option>Mahalaxmi Traders</option></select></label>
-      <label>Company WhatsApp number<input value={mobile} onChange={(event) => setMobile(event.target.value)} placeholder="Example: 919876543210" /></label>
+      <label>Company<select value={company} onChange={(event) => setCompany(event.target.value)}><option value="">Select a company first</option></select></label>
+      <label>Company WhatsApp number<input value={mobile} onChange={(event) => setMobile(event.target.value)} placeholder="Add company first" /></label>
       <label>Bill date<input type="date" value={billDate} onChange={(event) => setBillDate(event.target.value)} /></label>
       <label>Scrap item<select value={scrapItem} onChange={(event) => setScrapItem(event.target.value)}><option>Ferrous metal</option><option>Aluminium</option><option>Copper wire</option><option>Paper & cardboard</option></select></label>
       <label>Measurement unit<select value={unit} onChange={(event) => setUnit(event.target.value)}><option>Tonne (MT)</option><option>Kilogram (kg)</option><option>Long ton</option><option>Gross ton</option><option>Pound (lb)</option></select></label>
