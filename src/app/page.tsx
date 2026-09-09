@@ -1,69 +1,32 @@
-import Image from "next/image";
+"use client";
+
+import { useState, type ReactNode } from "react";
+import { ArrowDownLeft, ArrowUpRight, BarChart3, Bell, Boxes, Building2, ChevronDown, CircleDollarSign, FileText, LayoutDashboard, Menu, Settings2, Truck, X } from "lucide-react";
 import styles from "./page.module.css";
 
 export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  return <div className={styles.appShell}>
+    <aside className={`${styles.sidebar} ${mobileNavOpen ? styles.sidebarOpen : ""}`}>
+      <div className={styles.brandRow}><div className={styles.brandMark}>S</div><div><strong>ScrapFlow</strong><span>Business desk</span></div><button className={styles.closeNav} onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={18} /></button></div>
+      <div className={styles.workspaceSwitch}><span className={styles.workspaceDot} />Main workspace <ChevronDown size={15} /></div>
+      <nav className={styles.nav}><p className={styles.navLabel}>Overview</p><a className={`${styles.navItem} ${styles.navItemActive}`} href="#dashboard"><LayoutDashboard size={18} />Dashboard</a><a className={styles.navItem} href="#companies"><Building2 size={18} />Companies<span className={styles.navCount}>24</span></a><a className={styles.navItem} href="#stock"><Boxes size={18} />Stock</a><p className={styles.navLabel}>Trade desk</p><a className={styles.navItem} href="#purchases"><ArrowDownLeft size={18} />Purchases</a><a className={styles.navItem} href="#sales"><ArrowUpRight size={18} />Sales & deliveries</a><a className={styles.navItem} href="#payments"><CircleDollarSign size={18} />Payments</a><p className={styles.navLabel}>Insights</p><a className={styles.navItem} href="#reports"><BarChart3 size={18} />Reports</a><a className={styles.navItem} href="#settings"><Settings2 size={18} />Settings</a></nav>
+      <div className={styles.sidebarFooter}><div className={styles.avatar}>AK</div><div><strong>Arjun Kumar</strong><span>Owner</span></div><ChevronDown size={15} /></div>
+    </aside>
+    {mobileNavOpen && <button className={styles.scrim} onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" />}
+    <main className={styles.main} id="dashboard">
+      <header className={styles.topbar}><button className={styles.menuButton} onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><div className={styles.breadcrumb}><span>Workspace</span><b>/</b><strong>Dashboard</strong></div><div className={styles.topActions}><button className={styles.iconButton} aria-label="Notifications"><Bell size={19} /><i /></button><div className={styles.datePill}>Tuesday, 09 Sep 2026 <ChevronDown size={15} /></div></div></header>
+      <section className={styles.content}><div className={styles.hero}><div><p className={styles.eyebrow}>TUESDAY, 09 SEPTEMBER 2026</p><h1>Good morning, Arjun.</h1><p className={styles.heroCopy}>Here&apos;s what&apos;s moving across your scrap business today.</p></div><button className={styles.primaryButton}><span>+</span>New transaction</button></div>
+        <div className={styles.kpiGrid}><MetricCard label="Total stock" value="18,450" suffix="kg" trend="+8.4%" trendText="vs last month" icon={<Boxes size={19} />} tone="teal" /><MetricCard label="Purchase amount" value="₹12.48L" trend="+12.6%" trendText="vs last month" icon={<ArrowDownLeft size={19} />} tone="amber" /><MetricCard label="Sales amount" value="₹16.82L" trend="+18.2%" trendText="vs last month" icon={<ArrowUpRight size={19} />} tone="blue" /><MetricCard label="Net outstanding" value="₹4.36L" trend="-6.2%" trendText="vs last month" icon={<CircleDollarSign size={19} />} tone="coral" negative /></div>
+        <div className={styles.dashboardGrid}><section className={styles.panel}><div className={styles.panelHeader}><div><h2>Cash position</h2><p>Payables and receivables at a glance</p></div><button className={styles.periodButton}>Last 30 days <ChevronDown size={15} /></button></div><div className={styles.balanceRows}><BalanceRow label="To receive" detail="From buyers" amount="₹6,82,400" percentage="72%" tone="receive" /><BalanceRow label="To pay" detail="To suppliers" amount="₹2,46,850" percentage="28%" tone="pay" /></div><div className={styles.cashSummary}><span><i className={styles.greenDot} />Expected inflow</span><strong>₹6,82,400</strong><span><i className={styles.redDot} />Expected outflow</span><strong>₹2,46,850</strong></div></section><section className={styles.panel} id="stock"><div className={styles.panelHeader}><div><h2>Stock snapshot</h2><p>Current inventory by material</p></div><a className={styles.textLink} href="#stock">View stock <ArrowUpRight size={15} /></a></div><div className={styles.stockList}><StockRow name="Ferrous metal" value="8,240 kg" percent="68%" color="green" /><StockRow name="Aluminium" value="4,180 kg" percent="48%" color="blue" /><StockRow name="Copper wire" value="2,960 kg" percent="34%" color="orange" /><StockRow name="Paper & cardboard" value="3,070 kg" percent="39%" color="purple" /></div></section></div>
+        <section className={styles.panel} id="companies"><div className={styles.panelHeader}><div><h2>Recent activity</h2><p>Your latest purchases, sales, and payments</p></div><a className={styles.textLink} href="#transactions">View all activity <ArrowUpRight size={15} /></a></div><div className={styles.tableWrap}><table><thead><tr><th>Transaction</th><th>Company</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody><ActivityRow icon={<ArrowDownLeft size={16} />} iconTone="purchase" type="Purchase" company="Shree Metals Pvt. Ltd." date="09 Sep 2026" amount="₹84,500" status="Payable" /><ActivityRow icon={<ArrowUpRight size={16} />} iconTone="sale" type="Sale / Delivery" company="GreenEarth Industries" date="08 Sep 2026" amount="₹1,26,800" status="Part received" /><ActivityRow icon={<CircleDollarSign size={16} />} iconTone="payment" type="Payment received" company="Mahalaxmi Traders" date="07 Sep 2026" amount="₹52,000" status="Completed" /></tbody></table></div></section>
+        <div className={styles.quickActions}><div><p className={styles.eyebrow}>QUICK ACTIONS</p><h2>Keep your desk moving</h2></div><div className={styles.actionButtons}><button><ArrowDownLeft size={17} />Record purchase</button><button><Truck size={17} />Create delivery</button><button><FileText size={17} />Open reports</button></div></div>
+      </section>
+    </main>
+  </div>;
 }
+
+function MetricCard({ label, value, suffix, trend, trendText, icon, tone, negative = false }: { label: string; value: string; suffix?: string; trend: string; trendText: string; icon: ReactNode; tone: string; negative?: boolean }) { return <article className={styles.metricCard}><div className={styles.metricTop}><span>{label}</span><div className={`${styles.metricIcon} ${styles[tone]}`}>{icon}</div></div><div className={styles.metricValue}>{value}{suffix && <small>{suffix}</small>}</div><div className={`${styles.trend} ${negative ? styles.trendGood : ""}`}><span>{trend}</span> {trendText}</div></article>; }
+function BalanceRow({ label, detail, amount, percentage, tone }: { label: string; detail: string; amount: string; percentage: string; tone: string }) { return <div className={styles.balanceRow}><div className={styles.balanceLabel}><span className={`${styles.balanceIcon} ${styles[tone]}`}>{tone === "receive" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}</span><div><strong>{label}</strong><small>{detail}</small></div></div><strong>{amount}</strong><div className={styles.balanceBar}><span className={styles[tone]} style={{ width: percentage }} /></div></div>; }
+function StockRow({ name, value, percent, color }: { name: string; value: string; percent: string; color: string }) { return <div className={styles.stockRow}><div className={styles.stockName}><i className={`${styles.stockDot} ${styles[color]}`} /><strong>{name}</strong></div><strong>{value}</strong><div className={styles.stockBar}><span className={styles[color]} style={{ width: percent }} /></div></div>; }
+function ActivityRow({ icon, iconTone, type, company, date, amount, status }: { icon: ReactNode; iconTone: string; type: string; company: string; date: string; amount: string; status: string }) { return <tr><td><span className={`${styles.activityIcon} ${styles[iconTone]}`}>{icon}</span><strong>{type}</strong></td><td>{company}</td><td className={styles.muted}>{date}</td><td><strong>{amount}</strong></td><td><span className={`${styles.status} ${styles[status === "Completed" ? "complete" : status === "Payable" ? "payable" : "partial"]}`}>{status}</span></td></tr>; }
