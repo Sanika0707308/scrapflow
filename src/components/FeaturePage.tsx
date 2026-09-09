@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ArrowDownLeft, ArrowUpRight, BarChart3, Bell, Boxes, Building2, ChevronDown, CircleDollarSign, LayoutDashboard, Menu, Settings2, X } from "lucide-react";
 import styles from "./FeaturePage.module.css";
+import { emptyBusinessProfile, readBusinessProfile, saveBusinessProfile } from "@/lib/business-profile";
 
 type FeatureRow = { title: string; subtitle: string; amount?: string; status?: string; tone?: "green" | "amber" | "red" | "blue" };
 
@@ -22,7 +23,7 @@ const navigation = [
 export function FeaturePage({ active, eyebrow, title, description, actionLabel, actionHref, children }: { active: string; eyebrow: string; title: string; description: string; actionLabel?: string; actionHref?: string; children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [profile, setProfile] = useState({ businessName: "Main workspace", ownerName: "Business owner" });
-  useEffect(() => { const saved = localStorage.getItem("scrapflow-business-profile"); if (saved) { const details = JSON.parse(saved) as { businessName?: string; ownerName?: string }; setProfile({ businessName: details.businessName || "Main workspace", ownerName: details.ownerName || "Business owner" }); } }, []);
+  useEffect(() => { const details = readBusinessProfile(); if (details) setProfile({ businessName: details.businessName || "Main workspace", ownerName: details.ownerName || "Business owner" }); }, []);
   return <div className={styles.appShell}>
     <aside className={`${styles.sidebar} ${mobileNavOpen ? styles.sidebarOpen : ""}`}>
       <div className={styles.brandRow}><div className={styles.brandMark}>S</div><div><strong>ScrapFlow</strong><span>Business desk</span></div><button className={styles.closeNav} onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={18} /></button></div>
@@ -56,10 +57,21 @@ export function DataPanel({ title, subtitle, rows, emptyText = "No records found
 export function FormPanel({ title, fields }: { title: string; fields: string[] }) { return <section className={styles.panel} id="form"><div className={styles.panelHeader}><div><h2>{title}</h2><p>Enter details below. You can connect this form to the database next.</p></div></div><div className={styles.formGrid}>{fields.map((field) => <label key={field}>{field}{field === "Unit" ? <select defaultValue="Tonne (MT)"><option>Tonne (MT)</option><option>Kilogram (kg)</option><option>Long ton</option><option>Gross ton</option><option>Pound (lb)</option></select> : <input placeholder={`Enter ${field.toLowerCase()}`} />}</label>)}</div><button className={styles.saveButton}>Save details</button></section>; }
 
 export function BusinessProfileForm() {
-  const [profile, setProfile] = useState({ businessName: "", ownerName: "", mobile: "", email: "", address: "", gst: "" });
-  const [saved, setSaved] = useState(false);
+  const [profile, setProfile] = useState(emptyBusinessProfile);
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    try {
+      const saved = readBusinessProfile();
+      if (saved) setProfile(saved);
+    } catch {
+      setMessage("Saved details could not be loaded in this browser.");
+    }
+  }, []);
   const update = (field: keyof typeof profile, value: string) => setProfile((current) => ({ ...current, [field]: value }));
-  const save = () => { localStorage.setItem("scrapflow-business-profile", JSON.stringify(profile)); setSaved(true); };
+  const save = () => {
+    if (!profile.businessName.trim() || !profile.ownerName.trim()) { setMessage("Business name and owner name are required."); return; }
+    if (saveBusinessProfile(profile)) setMessage("Business details saved successfully."); else setMessage("Details could not be saved. Please allow browser storage and try again.");
+  };
   return <section className={styles.panel} id="business-profile"><div className={styles.panelHeader}><div><h2>Business details</h2><p>These details will appear on the dashboard, bills, and WhatsApp messages.</p></div></div><div className={styles.formGrid}>
     <label>Business name<input value={profile.businessName} onChange={(event) => update("businessName", event.target.value)} placeholder="Example: Sharma Scrap Traders" /></label>
     <label>Owner name<input value={profile.ownerName} onChange={(event) => update("ownerName", event.target.value)} placeholder="Enter owner name" /></label>
@@ -67,5 +79,5 @@ export function BusinessProfileForm() {
     <label>Email<input value={profile.email} onChange={(event) => update("email", event.target.value)} placeholder="Enter business email" /></label>
     <label>Business address<input value={profile.address} onChange={(event) => update("address", event.target.value)} placeholder="Enter business address" /></label>
     <label>GST number<input value={profile.gst} onChange={(event) => update("gst", event.target.value)} placeholder="Enter GST number" /></label>
-  </div><button className={styles.saveButton} onClick={save}>Save business details</button>{saved && <p className={styles.successMessage}>Business details saved on this device.</p>}</section>;
+  </div><button className={styles.saveButton} type="button" onClick={save}>Save business details</button>{message && <p className={message.includes("successfully") ? styles.successMessage : styles.errorMessage}>{message}</p>}</section>;
 }
