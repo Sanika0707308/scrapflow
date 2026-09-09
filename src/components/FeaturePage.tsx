@@ -56,7 +56,21 @@ export function DataPanel({ title, subtitle, rows, emptyText = "No records found
   return <section className={styles.panel}><div className={styles.panelHeader}><div><h2>{title}</h2><p>{subtitle}</p></div><div className={styles.filterTools}><input className={styles.searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search" aria-label={`Search ${title}`} /><label className={styles.filterSelect}><span>Filter</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label={`Filter ${title}`}>{statuses.map((status) => <option key={status}>{status}</option>)}</select><ChevronDown size={14} /></label></div></div><div className={styles.dataList}>{visibleRows.length ? visibleRows.map((row) => <div className={styles.dataRow} key={`${row.title}-${row.subtitle}`}><div><strong>{row.title}</strong><small>{row.subtitle}</small></div>{row.amount && <strong>{row.amount}</strong>}{row.status && <span className={`${styles.status} ${styles[row.tone || "blue"]}`}>{row.status}</span>}{allowDelete && <button className={styles.deleteButton} type="button" onClick={() => deleteRow(row.title)}>Delete</button>}</div>) : <p className={styles.empty}>{emptyText}</p>}</div></section>;
 }
 
-export function FormPanel({ title, fields }: { title: string; fields: string[] }) { return <section className={styles.panel} id="form"><div className={styles.panelHeader}><div><h2>{title}</h2><p>Enter details below. You can connect this form to the database next.</p></div></div><div className={styles.formGrid}>{fields.map((field) => <label key={field}>{field}{field === "Unit" ? <select defaultValue="Tonne (MT)"><option>Tonne (MT)</option><option>Kilogram (kg)</option><option>Long ton</option><option>Gross ton</option><option>Pound (lb)</option></select> : <input placeholder={`Enter ${field.toLowerCase()}`} />}</label>)}</div><button className={styles.saveButton}>Save details</button></section>; }
+export function FormPanel({ title, fields, storageKey = title, onSave, requiredFields = fields }: { title: string; fields: string[]; storageKey?: string; onSave?: (values: Record<string, string>) => void; requiredFields?: string[] }) {
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(fields.map((field) => [field, field === "Unit" ? "Tonne (MT)" : ""] as const)));
+  const [message, setMessage] = useState("");
+  const save = () => {
+    const requiredField = requiredFields.find((field) => !values[field]?.trim());
+    if (requiredField) { setMessage(`${requiredField} is required.`); return; }
+    const key = `scrapflow-${storageKey.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    const existing = JSON.parse(localStorage.getItem(key) || "[]") as Record<string, string>[];
+    localStorage.setItem(key, JSON.stringify([{ ...values, id: Date.now() }, ...existing]));
+    onSave?.(values);
+    setMessage(`${title} saved successfully.`);
+    setValues(Object.fromEntries(fields.map((field) => [field, field === "Unit" ? "Tonne (MT)" : ""] as const)));
+  };
+  return <section className={styles.panel} id="form"><div className={styles.panelHeader}><div><h2>{title}</h2><p>Enter details below. Saved details will remain available on this device.</p></div></div><div className={styles.formGrid}>{fields.map((field) => <label key={field}>{field}{field === "Unit" ? <select value={values[field]} onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))}><option>Tonne (MT)</option><option>Kilogram (kg)</option><option>Long ton</option><option>Gross ton</option><option>Pound (lb)</option></select> : field === "Company type" ? <select value={values[field]} onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))}><option value="">Select company type</option><option>Supplier</option><option>Buyer</option><option>Both</option></select> : <input value={values[field]} onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))} placeholder={`Enter ${field.toLowerCase()}`} />}</label>)}</div><button className={styles.saveButton} type="button" onClick={save}>Save details</button>{message && <p className={message.includes("successfully") ? styles.successMessage : styles.errorMessage}>{message}</p>}</section>;
+}
 
 export function BusinessProfileForm() {
   const [profile, setProfile] = useState(emptyBusinessProfile);
