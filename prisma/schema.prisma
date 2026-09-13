@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CompanyType {
+  SUPPLIER
+  BUYER
+  BOTH
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum PaymentDirection {
+  IN
+  OUT
+}
+
+enum StockMovementType {
+  OPENING
+  PURCHASE
+  SALE
+}
+
+enum LedgerEntryType {
+  PURCHASE
+  SALE
+  PAYMENT_IN
+  PAYMENT_OUT
+}
+
+enum LedgerBalanceCategory {
+  RECEIVABLE
+  PAYABLE
+}
+
+model Company {
+  id                String      @id @default(cuid())
+  name              String
+  type              CompanyType
+  contactPerson     String?
+  mobile            String?
+  email             String?
+  gstNumber         String?
+  address           String?
+  receivableBalance Decimal     @default(0) @db.Decimal(14, 2)
+  payableBalance    Decimal     @default(0) @db.Decimal(14, 2)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  purchases     Purchase[]
+  sales         Sale[]
+  payments      Payment[]
+  ledgerEntries LedgerEntry[]
+
+  @@index([name])
+  @@index([type])
+}
+
+model ScrapType {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  category     String?
+  unit         String   @default("Tonne (MT)")
+  currentStock Decimal  @default(0) @db.Decimal(14, 3)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  purchaseItems PurchaseItem[]
+  saleItems     SaleItem[]
+  movements     StockMovement[]
+
+  @@index([name])
+}
+
+model Purchase {
+  id                String        @id @default(cuid())
+  supplierId        String
+  supplier          Company       @relation(fields: [supplierId], references: [id])
+  purchaseDate      DateTime
+  notes             String?
+  totalAmount       Decimal       @db.Decimal(14, 2)
+  amountPaid        Decimal       @default(0) @db.Decimal(14, 2)
+  outstandingAmount Decimal       @db.Decimal(14, 2)
+  status            PaymentStatus @default(UNPAID)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  items          PurchaseItem[]
+  payments       Payment[]
+  stockMovements StockMovement[]
+  ledgerEntries  LedgerEntry[]
+
+  @@index([supplierId])
+  @@index([purchaseDate])
+  @@index([status])
+}
+
+model PurchaseItem {
+  id          String    @id @default(cuid())
+  purchaseId  String
+  purchase    Purchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  scrapTypeId String
+  scrapType   ScrapType @relation(fields: [scrapTypeId], references: [id])
+  quantity    Decimal   @db.Decimal(14, 3)
+  rate        Decimal   @db.Decimal(14, 2)
+  amount      Decimal   @db.Decimal(14, 2)
+
+  @@index([purchaseId])
+  @@index([scrapTypeId])
+}
+
+model Sale {
+  id                String        @id @default(cuid())
+  buyerId           String
+  buyer             Company       @relation(fields: [buyerId], references: [id])
+  saleDate          DateTime
+  notes             String?
+  totalAmount       Decimal       @db.Decimal(14, 2)
+  amountReceived    Decimal       @default(0) @db.Decimal(14, 2)
+  outstandingAmount Decimal       @db.Decimal(14, 2)
+  status            PaymentStatus @default(UNPAID)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  items          SaleItem[]
+  payments       Payment[]
+  stockMovements StockMovement[]
+  ledgerEntries  LedgerEntry[]
+
+  @@index([buyerId])
+  @@index([saleDate])
+  @@index([status])
+}
+
+model SaleItem {
+  id          String    @id @default(cuid())
+  saleId      String
+  sale        Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  scrapTypeId String
+  scrapType   ScrapType @relation(fields: [scrapTypeId], references: [id])
+  quantity    Decimal   @db.Decimal(14, 3)
+  rate        Decimal   @db.Decimal(14, 2)
+  amount      Decimal   @db.Decimal(14, 2)
+
+  @@index([saleId])
+  @@index([scrapTypeId])
+}
+
+model Payment {
+  id          String            @id @default(cuid())
+  companyId   String
+  company     Company           @relation(fields: [companyId], references: [id])
+  direction   PaymentDirection
+  paymentDate DateTime
+  amount      Decimal           @db.Decimal(14, 2)
+  method      String?
+  notes       String?
+  purchaseId  String?
+  purchase    Purchase?         @relation(fields: [purchaseId], references: [id])
+  saleId      String?
+  sale        Sale?             @relation(fields: [saleId], references: [id])
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  ledgerEntries LedgerEntry[]
+
+  @@index([companyId])
+  @@index([paymentDate])
+  @@index([purchaseId])
+  @@index([saleId])
+  @@index([direction])
+}
+
+model StockMovement {
+  id           String             @id @default(cuid())
+  scrapTypeId  String
+  scrapType    ScrapType          @relation(fields: [scrapTypeId], references: [id])
+  type         StockMovementType
+  quantity     Decimal            @db.Decimal(14, 3)
+  balanceAfter Decimal            @db.Decimal(14, 3)
+  occurredAt   DateTime
+  purchaseId   String?
+  purchase     Purchase?          @relation(fields: [purchaseId], references: [id])
+  saleId       String?
+  sale         Sale?              @relation(fields: [saleId], references: [id])
+  createdAt    DateTime           @default(now())
+
+  @@index([scrapTypeId, occurredAt])
+  @@index([purchaseId])
+  @@index([saleId])
+}
+
+model LedgerEntry {
+  id              String                 @id @default(cuid())
+  companyId       String
+  company         Company                @relation(fields: [companyId], references: [id])
+  type            LedgerEntryType
+  category        LedgerBalanceCategory
+  entryDate       DateTime
+  description     String
+  debit           Decimal                @default(0) @db.Decimal(14, 2)
+  credit          Decimal                @default(0) @db.Decimal(14, 2)
+  runningBalance  Decimal                @db.Decimal(14, 2)
+  purchaseId      String?
+  purchase        Purchase?              @relation(fields: [purchaseId], references: [id])
+  saleId          String?
+  sale            Sale?                  @relation(fields: [saleId], references: [id])
+  paymentId       String?
+  payment         Payment?               @relation(fields: [paymentId], references: [id])
+  createdAt       DateTime               @default(now())
+
+  @@index([companyId, category, entryDate])
+  @@index([purchaseId])
+  @@index([saleId])
+  @@index([paymentId])
+}

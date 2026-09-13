@@ -5,7 +5,7 @@ import { ArrowDownLeft, ArrowUpRight, BarChart3, Bell, Boxes, Building2, Chevron
 import styles from "./FeaturePage.module.css";
 import { emptyBusinessProfile, readBusinessProfile, saveBusinessProfile } from "@/lib/business-profile";
 
-type FeatureRow = { title: string; subtitle: string; amount?: string; status?: string; tone?: "green" | "amber" | "red" | "blue" };
+export type FeatureRow = { id?: string; title: string; subtitle: string; amount?: string; status?: string; tone?: "green" | "amber" | "red" | "blue" };
 
 const navigation = [
   ["/", "Dashboard", LayoutDashboard],
@@ -23,7 +23,7 @@ const navigation = [
 export function FeaturePage({ active, eyebrow, title, description, actionLabel, actionHref, children }: { active: string; eyebrow: string; title: string; description: string; actionLabel?: string; actionHref?: string; children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [profile, setProfile] = useState({ businessName: "Main workspace", ownerName: "Business owner" });
-  useEffect(() => { const details = readBusinessProfile(); if (details) setProfile({ businessName: details.businessName || "Main workspace", ownerName: details.ownerName || "Business owner" }); }, []);
+  useEffect(() => { const details = readBusinessProfile(); if (details) setTimeout(() => setProfile({ businessName: details.businessName || "Main workspace", ownerName: details.ownerName || "Business owner" }), 0); }, []);
   return <div className={styles.appShell}>
     <aside className={`${styles.sidebar} ${mobileNavOpen ? styles.sidebarOpen : ""}`}>
       <div className={styles.brandRow}><div className={styles.brandMark}>S</div><div><strong>ScrapFlow</strong><span>Business desk</span></div><button className={styles.closeNav} onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={18} /></button></div>
@@ -42,34 +42,68 @@ function NavItem({ href, label, Icon, active }: { href: string; label: string; I
 
 export function SummaryCards({ cards }: { cards: { label: string; value: string; note: string; tone: "green" | "amber" | "blue" | "red" }[] }) { return <div className={styles.summaryGrid}>{cards.map((card) => <article className={styles.summaryCard} key={card.label}><span>{card.label}</span><strong>{card.value}</strong><small className={styles[card.tone]}>{card.note}</small></article>)}</div>; }
 
-export function DataPanel({ title, subtitle, rows, emptyText = "No records found", allowDelete = false }: { title: string; subtitle: string; rows: FeatureRow[]; emptyText?: string; allowDelete?: boolean }) {
-  const [currentRows, setCurrentRows] = useState(rows);
+export function DataPanel({ title, subtitle, rows, emptyText = "No records found", allowDelete = false, onDelete, loading = false, error = null }: { title: string; subtitle: string; rows: FeatureRow[]; emptyText?: string; allowDelete?: boolean; onDelete?: (row: FeatureRow) => Promise<void> | void; loading?: boolean; error?: string | null }) {
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(() => new Set());
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const statuses = ["All", ...Array.from(new Set(currentRows.map((row) => row.status).filter(Boolean)))];
-  const visibleRows = currentRows.filter((row) => {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const activeRows = rows.filter((row) => !deletedIds.has(row.id || row.title));
+  const statuses = ["All", ...Array.from(new Set(activeRows.map((row) => row.status).filter(Boolean)))];
+  const visibleRows = activeRows.filter((row) => {
     const matchesSearch = `${row.title} ${row.subtitle} ${row.amount || ""}`.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "All" || row.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
-  const deleteRow = (title: string) => { if (window.confirm(`Delete ${title}? This action cannot be undone.`)) setCurrentRows((items) => items.filter((row) => row.title !== title)); };
-  return <section className={styles.panel}><div className={styles.panelHeader}><div><h2>{title}</h2><p>{subtitle}</p></div><div className={styles.filterTools}><input className={styles.searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search" aria-label={`Search ${title}`} /><label className={styles.filterSelect}><span>Filter</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label={`Filter ${title}`}>{statuses.map((status) => <option key={status}>{status}</option>)}</select><ChevronDown size={14} /></label></div></div><div className={styles.dataList}>{visibleRows.length ? visibleRows.map((row) => <div className={styles.dataRow} key={`${row.title}-${row.subtitle}`}><div><strong>{row.title}</strong><small>{row.subtitle}</small></div>{row.amount && <strong>{row.amount}</strong>}{row.status && <span className={`${styles.status} ${styles[row.tone || "blue"]}`}>{row.status}</span>}{allowDelete && <button className={styles.deleteButton} type="button" onClick={() => deleteRow(row.title)}>Delete</button>}</div>) : <p className={styles.empty}>{emptyText}</p>}</div></section>;
+  const deleteRow = async (row: FeatureRow) => {
+    if (window.confirm(`Delete ${row.title}? This action cannot be undone.`)) {
+      if (onDelete) {
+        setDeletingId(row.id || row.title);
+        try {
+          await onDelete(row);
+        } finally {
+          setDeletingId(null);
+        }
+      } else {
+        setDeletedIds((prev) => new Set(prev).add(row.id || row.title));
+      }
+    }
+  };
+  return <section className={styles.panel}><div className={styles.panelHeader}><div><h2>{title}</h2><p>{subtitle}</p></div><div className={styles.filterTools}><input className={styles.searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search" aria-label={`Search ${title}`} /><label className={styles.filterSelect}><span>Filter</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label={`Filter ${title}`}>{statuses.map((status) => <option key={status}>{status}</option>)}</select><ChevronDown size={14} /></label></div></div>{error && <p className={styles.errorMessage} style={{ margin: "14px 0 0" }}>{error}</p>}<div className={styles.dataList}>{loading ? <p className={styles.empty}>Loading...</p> : visibleRows.length ? visibleRows.map((row) => <div className={styles.dataRow} key={row.id || `${row.title}-${row.subtitle}`}><div><strong>{row.title}</strong><small>{row.subtitle}</small></div>{row.amount && <strong>{row.amount}</strong>}{row.status && <span className={`${styles.status} ${styles[row.tone || "blue"]}`}>{row.status}</span>}{allowDelete && <button className={styles.deleteButton} type="button" disabled={deletingId === (row.id || row.title)} onClick={() => deleteRow(row)}>{deletingId === (row.id || row.title) ? "Deleting..." : "Delete"}</button>}</div>) : <p className={styles.empty}>{emptyText}</p>}</div></section>;
 }
 
-export function FormPanel({ title, fields, storageKey = title, onSave, requiredFields = fields }: { title: string; fields: string[]; storageKey?: string; onSave?: (values: Record<string, string>) => void; requiredFields?: string[] }) {
+export function FormPanel({ title, fields, storageKey = title, onSave, requiredFields = fields, disableLocalStorage = false }: { title: string; fields: string[]; storageKey?: string; onSave?: (values: Record<string, string>) => Promise<boolean | void> | void; requiredFields?: string[]; disableLocalStorage?: boolean }) {
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(fields.map((field) => [field, field === "Unit" ? "Tonne (MT)" : ""] as const)));
   const [message, setMessage] = useState("");
-  const save = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const save = async () => {
     const requiredField = requiredFields.find((field) => !values[field]?.trim());
     if (requiredField) { setMessage(`${requiredField} is required.`); return; }
-    const key = `scrapflow-${storageKey.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-    const existing = JSON.parse(localStorage.getItem(key) || "[]") as Record<string, string>[];
-    localStorage.setItem(key, JSON.stringify([{ ...values, id: Date.now() }, ...existing]));
-    onSave?.(values);
-    setMessage(`${title} saved successfully.`);
-    setValues(Object.fromEntries(fields.map((field) => [field, field === "Unit" ? "Tonne (MT)" : ""] as const)));
+    setIsSubmitting(true);
+    setMessage("");
+    try {
+      if (!disableLocalStorage && storageKey) {
+        const key = `scrapflow-${storageKey.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+        const existing = JSON.parse(localStorage.getItem(key) || "[]") as Record<string, string>[];
+        localStorage.setItem(key, JSON.stringify([{ ...values, id: Date.now() }, ...existing]));
+      }
+      if (onSave) {
+        const res = await onSave(values);
+        if (res !== false) {
+          setMessage(`${title} saved successfully.`);
+          setValues(Object.fromEntries(fields.map((field) => [field, field === "Unit" ? "Tonne (MT)" : ""] as const)));
+        }
+      } else {
+        setMessage(`${title} saved successfully.`);
+        setValues(Object.fromEntries(fields.map((field) => [field, field === "Unit" ? "Tonne (MT)" : ""] as const)));
+      }
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : "Failed to save details.";
+      setMessage(errMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-  return <section className={styles.panel} id="form"><div className={styles.panelHeader}><div><h2>{title}</h2><p>Enter details below. Saved details will remain available on this device.</p></div></div><div className={styles.formGrid}>{fields.map((field) => <label key={field}>{field}{field === "Unit" ? <select value={values[field]} onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))}><option>Tonne (MT)</option><option>Kilogram (kg)</option><option>Long ton</option><option>Gross ton</option><option>Pound (lb)</option></select> : field === "Company type" ? <select value={values[field]} onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))}><option value="">Select company type</option><option>Supplier</option><option>Buyer</option><option>Both</option></select> : <input value={values[field]} onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))} placeholder={`Enter ${field.toLowerCase()}`} />}</label>)}</div><button className={styles.saveButton} type="button" onClick={save}>Save details</button>{message && <p className={message.includes("successfully") ? styles.successMessage : styles.errorMessage}>{message}</p>}</section>;
+  return <section className={styles.panel} id="form"><div className={styles.panelHeader}><div><h2>{title}</h2><p>{disableLocalStorage ? "Enter details below to save to the database." : "Enter details below. Saved details will remain available on this device."}</p></div></div><div className={styles.formGrid}>{fields.map((field) => <label key={field}>{field}{field === "Unit" ? <select value={values[field] ?? "Tonne (MT)"} onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))}><option>Tonne (MT)</option><option>Kilogram (kg)</option><option>Long ton</option><option>Gross ton</option><option>Pound (lb)</option></select> : field === "Company type" ? <select value={values[field] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))}><option value="">Select company type</option><option>Supplier</option><option>Buyer</option><option>Both</option></select> : <input type="text" value={values[field] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))} placeholder={`Enter ${field.toLowerCase()}`} />}</label>)}</div><button className={styles.saveButton} type="button" disabled={isSubmitting} onClick={save}>{isSubmitting ? "Saving..." : "Save details"}</button>{message && <p className={message.includes("successfully") ? styles.successMessage : styles.errorMessage}>{message}</p>}</section>;
 }
 
 export function BusinessProfileForm() {
@@ -78,9 +112,9 @@ export function BusinessProfileForm() {
   useEffect(() => {
     try {
       const saved = readBusinessProfile();
-      if (saved) setProfile(saved);
+      if (saved) setTimeout(() => setProfile(saved), 0);
     } catch {
-      setMessage("Saved details could not be loaded in this browser.");
+      setTimeout(() => setMessage("Saved details could not be loaded in this browser."), 0);
     }
   }, []);
   const update = (field: keyof typeof profile, value: string) => setProfile((current) => ({ ...current, [field]: value }));
