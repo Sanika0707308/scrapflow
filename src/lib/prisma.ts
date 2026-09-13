@@ -8,10 +8,8 @@ function createPrismaClient() {
     process.env.DATABASE_URL ||
     process.env.STORAGE_URL ||
     process.env.POSTGRES_PRISMA_URL ||
-    process.env.POSTGRES_URL;
-  if (!connectionString) {
-    throw new Error("DATABASE_URL is not set");
-  }
+    process.env.POSTGRES_URL ||
+    "postgresql://postgres:postgres@localhost:5432/placeholder";
 
   return new PrismaClient({
     adapter: new PrismaPg({ connectionString }),
