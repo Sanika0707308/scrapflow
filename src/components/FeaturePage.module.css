@@ -160,15 +160,32 @@
 }
 
 .deleteButton {
-  padding: 5px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
   border: 1px solid #f0d6d0;
   border-radius: 5px;
   color: #b45e4d;
   background: #fff8f6;
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
-.deleteButton:hover { color: #fff; background: #b45e4d; }
+.deleteButton:hover:not(:disabled) {
+  color: #fff;
+  background: #b45e4d;
+  border-color: #b45e4d;
+}
+.deleteButton:focus-visible {
+  outline: 2px solid #b45e4d;
+  outline-offset: 1px;
+}
+.deleteButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 .actionButton {
   padding: 5px 10px;

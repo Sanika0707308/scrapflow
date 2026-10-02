@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ArrowDownLeft, ArrowUpRight, BarChart3, Bell, Boxes, Building2, ChevronDown, CircleDollarSign, LayoutDashboard, Menu, Settings2, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, BarChart3, Bell, Boxes, Building2, ChevronDown, CircleDollarSign, LayoutDashboard, Menu, Settings2, Trash2, X } from "lucide-react";
 import styles from "./FeaturePage.module.css";
 import { emptyBusinessProfile, readBusinessProfile, saveBusinessProfile } from "@/lib/business-profile";
 
@@ -42,7 +42,29 @@ function NavItem({ href, label, Icon, active }: { href: string; label: string; I
 
 export function SummaryCards({ cards }: { cards: { label: string; value: string; note: string; tone: "green" | "amber" | "blue" | "red" }[] }) { return <div className={styles.summaryGrid}>{cards.map((card) => <article className={styles.summaryCard} key={card.label}><span>{card.label}</span><strong>{card.value}</strong><small className={styles[card.tone]}>{card.note}</small></article>)}</div>; }
 
-export function DataPanel({ title, subtitle, rows, emptyText = "No records found", allowDelete = false, onDelete, loading = false, error = null }: { title: string; subtitle: string; rows: FeatureRow[]; emptyText?: string; allowDelete?: boolean; onDelete?: (row: FeatureRow) => Promise<void> | void; loading?: boolean; error?: string | null }) {
+export function DataPanel({
+  title,
+  subtitle,
+  rows,
+  emptyText = "No records found",
+  allowDelete = false,
+  onDelete,
+  onRequestDelete,
+  deleteTitle = "Delete company",
+  loading = false,
+  error = null,
+}: {
+  title: string;
+  subtitle: string;
+  rows: FeatureRow[];
+  emptyText?: string;
+  allowDelete?: boolean;
+  onDelete?: (row: FeatureRow) => Promise<void> | void;
+  onRequestDelete?: (row: FeatureRow) => void;
+  deleteTitle?: string;
+  loading?: boolean;
+  error?: string | null;
+}) {
   const [deletedIds, setDeletedIds] = useState<Set<string>>(() => new Set());
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -68,7 +90,14 @@ export function DataPanel({ title, subtitle, rows, emptyText = "No records found
       }
     }
   };
-  return <section className={styles.panel}><div className={styles.panelHeader}><div><h2>{title}</h2><p>{subtitle}</p></div><div className={styles.filterTools}><input className={styles.searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search" aria-label={`Search ${title}`} /><label className={styles.filterSelect}><span>Filter</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label={`Filter ${title}`}>{statuses.map((status) => <option key={status}>{status}</option>)}</select><ChevronDown size={14} /></label></div></div>{error && <p className={styles.errorMessage} style={{ margin: "14px 0 0" }}>{error}</p>}<div className={styles.dataList}>{loading ? <p className={styles.empty}>Loading...</p> : visibleRows.length ? visibleRows.map((row) => <div className={styles.dataRow} key={row.id || `${row.title}-${row.subtitle}`}><div><strong>{row.title}</strong><small>{row.subtitle}</small></div>{row.amount && <strong>{row.amount}</strong>}{row.status && <span className={`${styles.status} ${styles[row.tone || "blue"]}`}>{row.status}</span>}{row.actionLabel && row.onAction && <button className={styles.actionButton} type="button" onClick={() => row.onAction!(row)}>{row.actionLabel}</button>}{allowDelete && <button className={styles.deleteButton} type="button" disabled={deletingId === (row.id || row.title)} onClick={() => deleteRow(row)}>{deletingId === (row.id || row.title) ? "Deleting..." : "Delete"}</button>}</div>) : <p className={styles.empty}>{emptyText}</p>}</div></section>;
+  const handleDeleteClick = (row: FeatureRow) => {
+    if (onRequestDelete) {
+      onRequestDelete(row);
+    } else {
+      deleteRow(row);
+    }
+  };
+  return <section className={styles.panel}><div className={styles.panelHeader}><div><h2>{title}</h2><p>{subtitle}</p></div><div className={styles.filterTools}><input className={styles.searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search" aria-label={`Search ${title}`} /><label className={styles.filterSelect}><span>Filter</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label={`Filter ${title}`}>{statuses.map((status) => <option key={status}>{status}</option>)}</select><ChevronDown size={14} /></label></div></div>{error && <p className={styles.errorMessage} style={{ margin: "14px 0 0" }}>{error}</p>}<div className={styles.dataList}>{loading ? <p className={styles.empty}>Loading...</p> : visibleRows.length ? visibleRows.map((row) => <div className={styles.dataRow} key={row.id || `${row.title}-${row.subtitle}`}><div><strong>{row.title}</strong><small>{row.subtitle}</small></div>{row.amount && <strong>{row.amount}</strong>}{row.status && <span className={`${styles.status} ${styles[row.tone || "blue"]}`}>{row.status}</span>}{row.actionLabel && row.onAction && <button className={styles.actionButton} type="button" onClick={() => row.onAction!(row)}>{row.actionLabel}</button>}{allowDelete && <button className={styles.deleteButton} type="button" title={deleteTitle} aria-label={`${deleteTitle}: ${row.title}`} disabled={deletingId === (row.id || row.title)} onClick={() => handleDeleteClick(row)}><Trash2 size={13} aria-hidden="true" /><span>{deletingId === (row.id || row.title) ? "Deleting..." : "Delete"}</span></button>}</div>) : <p className={styles.empty}>{emptyText}</p>}</div></section>;
 }
 
 export function FormPanel({ title, fields, storageKey = title, onSave, requiredFields = fields, disableLocalStorage = false }: { title: string; fields: string[]; storageKey?: string; onSave?: (values: Record<string, string>) => Promise<boolean | void> | void; requiredFields?: string[]; disableLocalStorage?: boolean }) {

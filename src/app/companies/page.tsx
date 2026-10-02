@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { DataPanel, FeaturePage, SummaryCards, type FeatureRow } from "@/components/FeaturePage";
 import styles from "@/components/FeaturePage.module.css";
 import { validateEmail, validateGstin, validatePhoneNumber } from "@/lib/company-validation";
+import { DeleteCompanyModal } from "@/components/DeleteCompanyModal";
 
 type ApiCompany = {
   id: string;
@@ -32,6 +33,9 @@ export default function CompaniesPage() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  const [deleteTarget, setDeleteTarget] = useState<FeatureRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -277,11 +281,12 @@ export default function CompaniesPage() {
     }
   };
 
-  const deleteCompany = async (row: FeatureRow) => {
-    if (!row.id) return;
+  const confirmDeleteCompany = async () => {
+    if (!deleteTarget || !deleteTarget.id) return;
+    setIsDeleting(true);
     setDeleteStatus(null);
     try {
-      const res = await fetch(`/api/companies/${row.id}`, {
+      const res = await fetch(`/api/companies/${deleteTarget.id}`, {
         method: "DELETE",
       });
 
@@ -291,6 +296,7 @@ export default function CompaniesPage() {
         const errorText =
           body.error || "This company cannot be deleted because it has existing transactions.";
         setDeleteStatus({ type: "error", text: errorText });
+        setDeleteTarget(null);
         return;
       }
 
@@ -299,14 +305,18 @@ export default function CompaniesPage() {
         text: "Company deleted successfully",
       });
 
-      if (editingId === row.id) {
+      if (editingId === deleteTarget.id) {
         cancelEdit();
       }
 
+      setDeleteTarget(null);
       await loadCompanies();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Network error deleting company";
       setDeleteStatus({ type: "error", text: msg });
+      setDeleteTarget(null);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -393,11 +403,22 @@ export default function CompaniesPage() {
         title="Company list"
         subtitle="Your saved companies will appear here"
         allowDelete
+        onRequestDelete={(row) => setDeleteTarget(row)}
+        deleteTitle="Delete company"
         rows={companyRows}
-        onDelete={deleteCompany}
         loading={loading}
         error={error}
         emptyText={loading ? "Loading companies..." : "No companies added yet. Use Add company to create your first supplier or buyer."}
+      />
+
+      <DeleteCompanyModal
+        isOpen={Boolean(deleteTarget)}
+        companyName={deleteTarget?.title || ""}
+        isDeleting={isDeleting}
+        onConfirm={confirmDeleteCompany}
+        onClose={() => {
+          if (!isDeleting) setDeleteTarget(null);
+        }}
       />
 
       <section className={styles.panel} id="form">
