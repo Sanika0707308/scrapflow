@@ -370,7 +370,7 @@ export default function Home() {
             <MetricCard
               label="Purchase amount"
               value={loading ? "..." : formatCurrency(purchaseAmount)}
-              trend={dashboard ? `${dashboard.month.purchaseCount} bills` : "0 bills"}
+              trend={dashboard ? `${dashboard.month.purchaseCount} purchases` : "0 purchases"}
               trendText="bought this month"
               icon={<ArrowDownLeft size={19} />}
               tone="amber"

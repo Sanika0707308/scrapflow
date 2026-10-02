@@ -16,7 +16,9 @@ import {
 } from "lucide-react";
 import { FeaturePage, SummaryCards } from "@/components/FeaturePage";
 import styles from "@/components/FeaturePage.module.css";
+import { BuyerBillModal } from "@/components/BuyerBillModal";
 import { readBusinessProfile } from "@/lib/business-profile";
+import { type BuyerBillData, getSaleBillNumber } from "@/lib/buyer-bill";
 import { formatLineItem, formatQuantity } from "@/lib/quantity";
 
 type ReportTab = "purchases" | "sales" | "payments" | "udhari" | "stock" | "companies";
@@ -41,7 +43,16 @@ type PurchaseItem = {
 type SaleItem = {
   id: string;
   saleDate: string;
-  buyer: { id: string; name: string; mobile: string | null };
+  notes?: string | null;
+  createdAt?: string;
+  buyer: {
+    id: string;
+    name: string;
+    mobile: string | null;
+    contactPerson?: string | null;
+    address?: string | null;
+    gstNumber?: string | null;
+  };
   items: Array<{
     id: string;
     quantity: string | number;
@@ -121,6 +132,43 @@ export default function ReportsPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSaleBill, setSelectedSaleBill] = useState<BuyerBillData | null>(null);
+
+  const openSaleBillModal = (sale: SaleItem) => {
+    const billNum = getSaleBillNumber(sale);
+    const billItems = sale.items.map((i) => ({
+      id: i.id,
+      name: i.scrapType.name,
+      quantityKg: Number(i.quantity) || 0,
+      unit: i.scrapType.unit,
+      rate: Number(i.rate) || 0,
+      amount: Number(i.amount) || 0,
+    }));
+    const bill: BuyerBillData = {
+      id: sale.id,
+      billNumber: billNum,
+      date: new Date(sale.saleDate).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }),
+      buyer: {
+        id: sale.buyer.id,
+        name: sale.buyer.name,
+        mobile: sale.buyer.mobile,
+        contactPerson: sale.buyer.contactPerson,
+        address: sale.buyer.address,
+        gstNumber: sale.buyer.gstNumber,
+      },
+      items: billItems,
+      totalAmount: Number(sale.totalAmount) || 0,
+      amountPaid: Number(sale.amountReceived) || 0,
+      outstandingAmount: Number(sale.outstandingAmount) || 0,
+      status: sale.status,
+      notes: sale.notes,
+    };
+    setSelectedSaleBill(bill);
+  };
 
   useEffect(() => {
     const profile = readBusinessProfile();
@@ -464,10 +512,10 @@ export default function ReportsPage() {
       return (
         <SummaryCards
           cards={[
-            { label: "Total purchases", value: formatCurrency(totalPur), note: `${filteredPurchases.length} purchase bills`, tone: "amber" },
+            { label: "Total purchases", value: formatCurrency(totalPur), note: `${filteredPurchases.length} inward purchases`, tone: "amber" },
             { label: "Amount paid", value: formatCurrency(totalPaid), note: "Disbursed to suppliers", tone: "blue" },
             { label: "Balance payable", value: formatCurrency(totalDue), note: totalDue > 0 ? "Pending supplier udhari" : "All cleared", tone: "red" },
-            { label: "Bills count", value: String(filteredPurchases.length), note: "Filtered records", tone: "green" },
+            { label: "Purchases count", value: String(filteredPurchases.length), note: "Inward records (No bills)", tone: "green" },
           ]}
         />
       );
@@ -482,7 +530,7 @@ export default function ReportsPage() {
             { label: "Total sales", value: formatCurrency(totalSal), note: `${filteredSales.length} sale deliveries`, tone: "blue" },
             { label: "Amount received", value: formatCurrency(totalRec), note: "Collected from buyers", tone: "green" },
             { label: "Balance receivable", value: formatCurrency(totalDue), note: totalDue > 0 ? "Pending customer udhari" : "All collected", tone: "red" },
-            { label: "Sales count", value: String(filteredSales.length), note: "Filtered records", tone: "amber" },
+            { label: "Bills & Sales count", value: String(filteredSales.length), note: "Buyer invoices issued", tone: "amber" },
           ]}
         />
       );
@@ -858,62 +906,67 @@ export default function ReportsPage() {
           <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", marginTop: "16px" }}>
             {/* 1. PURCHASES REPORT TABLE */}
             {activeTab === "purchases" && (
-              <table style={{ width: "100%", minWidth: "680px", borderCollapse: "collapse", fontSize: "12px", color: "#385850" }}>
-                <thead>
-                  <tr style={{ borderBottom: "2px solid #edf1f0", textAlign: "left", color: "#788984", fontSize: "11px", textTransform: "uppercase" }}>
-                    <th style={{ padding: "10px 12px" }}>Date</th>
-                    <th style={{ padding: "10px 12px" }}>Supplier</th>
-                    <th style={{ padding: "10px 12px" }}>Items / Scrap</th>
-                    <th style={{ padding: "10px 12px", textAlign: "right" }}>Bill Total</th>
-                    <th style={{ padding: "10px 12px", textAlign: "right" }}>Paid</th>
-                    <th style={{ padding: "10px 12px", textAlign: "right" }}>Outstanding</th>
-                    <th style={{ padding: "10px 12px", textAlign: "center" }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPurchases.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className={styles.empty} style={{ textAlign: "center", padding: "30px" }}>
-                        No purchases found matching the selected date range or search filter.
-                      </td>
+              <>
+                <p style={{ fontSize: "11px", color: "#8a5814", background: "#fef9ee", border: "1px solid #f6e3ba", padding: "8px 12px", borderRadius: "6px", margin: "0 0 12px" }}>
+                  <strong>ℹ️ Inward Goods Register:</strong> Scrap bought from suppliers is recorded directly into yard inventory and supplier payable ledger. As per scrap trading standard, no bills are generated for suppliers.
+                </p>
+                <table style={{ width: "100%", minWidth: "680px", borderCollapse: "collapse", fontSize: "12px", color: "#385850" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #edf1f0", textAlign: "left", color: "#788984", fontSize: "11px", textTransform: "uppercase" }}>
+                      <th style={{ padding: "10px 12px" }}>Date</th>
+                      <th style={{ padding: "10px 12px" }}>Supplier</th>
+                      <th style={{ padding: "10px 12px" }}>Items / Scrap</th>
+                      <th style={{ padding: "10px 12px", textAlign: "right" }}>Purchase Total</th>
+                      <th style={{ padding: "10px 12px", textAlign: "right" }}>Paid</th>
+                      <th style={{ padding: "10px 12px", textAlign: "right" }}>Outstanding</th>
+                      <th style={{ padding: "10px 12px", textAlign: "center" }}>Status</th>
                     </tr>
-                  ) : (
-                    filteredPurchases.map((p) => {
-                      const dateStr = new Date(p.purchaseDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-                      const itemsStr = p.items.map((i) => formatLineItem(i.quantity, i.amount, i.scrapType.name)).join(", ");
-                      const totalAmt = Number(p.totalAmount) || 0;
-                      const paidAmt = Number(p.amountPaid) || 0;
-                      const dueAmt = Number(p.outstandingAmount) || 0;
+                  </thead>
+                  <tbody>
+                    {filteredPurchases.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className={styles.empty} style={{ textAlign: "center", padding: "30px" }}>
+                          No purchases found matching the selected date range or search filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredPurchases.map((p) => {
+                        const dateStr = new Date(p.purchaseDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+                        const itemsStr = p.items.map((i) => formatLineItem(i.quantity, i.amount, i.scrapType.name)).join(", ");
+                        const totalAmt = Number(p.totalAmount) || 0;
+                        const paidAmt = Number(p.amountPaid) || 0;
+                        const dueAmt = Number(p.outstandingAmount) || 0;
 
-                      return (
-                        <tr key={p.id} style={{ borderBottom: "1px solid #edf1f0" }}>
-                          <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{dateStr}</td>
-                          <td style={{ padding: "10px 12px" }}>
-                            <strong>{p.supplier.name}</strong>
-                            {p.supplier.mobile && <small style={{ display: "block", color: "#8b9b95", fontSize: "10px" }}>{p.supplier.mobile}</small>}
-                          </td>
-                          <td style={{ padding: "10px 12px" }}>{itemsStr}</td>
-                          <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>{formatCurrency(totalAmt)}</td>
-                          <td style={{ padding: "10px 12px", textAlign: "right", color: "#39816b" }}>{formatCurrency(paidAmt)}</td>
-                          <td style={{ padding: "10px 12px", textAlign: "right", color: dueAmt > 0 ? "#b45e4d" : "#39816b", fontWeight: dueAmt > 0 ? 700 : 400 }}>
-                            {formatCurrency(dueAmt)}
-                          </td>
-                          <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                            <span className={`${styles.status} ${p.status === "PAID" ? styles.green : p.status === "PARTIAL" ? styles.amber : styles.red}`}>
-                              {p.status === "PAID" ? "Fully Paid" : p.status === "PARTIAL" ? "Partial" : "Unpaid"}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                        return (
+                          <tr key={p.id} style={{ borderBottom: "1px solid #edf1f0" }}>
+                            <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{dateStr}</td>
+                            <td style={{ padding: "10px 12px" }}>
+                              <strong>{p.supplier.name}</strong>
+                              {p.supplier.mobile && <small style={{ display: "block", color: "#8b9b95", fontSize: "10px" }}>{p.supplier.mobile}</small>}
+                            </td>
+                            <td style={{ padding: "10px 12px" }}>{itemsStr}</td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700 }}>{formatCurrency(totalAmt)}</td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", color: "#39816b" }}>{formatCurrency(paidAmt)}</td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", color: dueAmt > 0 ? "#b45e4d" : "#39816b", fontWeight: dueAmt > 0 ? 700 : 400 }}>
+                              {formatCurrency(dueAmt)}
+                            </td>
+                            <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                              <span className={`${styles.status} ${p.status === "PAID" ? styles.green : p.status === "PARTIAL" ? styles.amber : styles.red}`}>
+                                {p.status === "PAID" ? "Fully Paid" : p.status === "PARTIAL" ? "Partial" : "Unpaid"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </>
             )}
 
             {/* 2. SALES REPORT TABLE */}
             {activeTab === "sales" && (
-              <table style={{ width: "100%", minWidth: "680px", borderCollapse: "collapse", fontSize: "12px", color: "#385850" }}>
+              <table style={{ width: "100%", minWidth: "740px", borderCollapse: "collapse", fontSize: "12px", color: "#385850" }}>
                 <thead>
                   <tr style={{ borderBottom: "2px solid #edf1f0", textAlign: "left", color: "#788984", fontSize: "11px", textTransform: "uppercase" }}>
                     <th style={{ padding: "10px 12px" }}>Date</th>
@@ -923,12 +976,13 @@ export default function ReportsPage() {
                     <th style={{ padding: "10px 12px", textAlign: "right" }}>Received</th>
                     <th style={{ padding: "10px 12px", textAlign: "right" }}>Outstanding</th>
                     <th style={{ padding: "10px 12px", textAlign: "center" }}>Status</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center" }}>Invoice / Bill</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredSales.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className={styles.empty} style={{ textAlign: "center", padding: "30px" }}>
+                      <td colSpan={8} className={styles.empty} style={{ textAlign: "center", padding: "30px" }}>
                         No sales found matching the selected date range or search filter.
                       </td>
                     </tr>
@@ -957,6 +1011,24 @@ export default function ReportsPage() {
                             <span className={`${styles.status} ${s.status === "PAID" ? styles.green : s.status === "PARTIAL" ? styles.amber : styles.blue}`}>
                               {s.status === "PAID" ? "Fully Collected" : s.status === "PARTIAL" ? "Partial" : "Unpaid"}
                             </span>
+                          </td>
+                          <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                            <button
+                              type="button"
+                              onClick={() => openSaleBillModal(s)}
+                              style={{
+                                padding: "4px 9px",
+                                fontSize: "11px",
+                                borderRadius: "4px",
+                                border: "1px solid #477598",
+                                background: "#f0f6fa",
+                                color: "#477598",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                              }}
+                            >
+                              View Bill
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1168,6 +1240,12 @@ export default function ReportsPage() {
           </div>
         )}
       </section>
+
+      {/* Buyer Bill Modal for inspecting/printing/downloading sale bills */}
+      <BuyerBillModal
+        bill={selectedSaleBill}
+        onClose={() => setSelectedSaleBill(null)}
+      />
     </FeaturePage>
   );
 }

@@ -1,10 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { jsPDF } from "jspdf";
 import { FeaturePage } from "@/components/FeaturePage";
 import styles from "@/components/FeaturePage.module.css";
+import { BuyerBillModal } from "@/components/BuyerBillModal";
 import { readBusinessProfile } from "@/lib/business-profile";
+import {
+  type BuyerBillData,
+  downloadBuyerBillPdf,
+  generateBuyerBillPdf,
+  getBuyerBillWhatsAppMessage,
+} from "@/lib/buyer-bill";
 import { formatQuantity, isTonneUnit } from "@/lib/quantity";
 
 type Company = {
@@ -26,7 +32,7 @@ type ScrapType = {
 type SavedQuickBill = {
   id: string;
   billNumber: string;
-  billType: string;
+  billType: "Sale / bill to buyer" | "Purchase / inward from supplier";
   companyName: string;
   mobile: string;
   scrapName: string;
@@ -38,6 +44,7 @@ type SavedQuickBill = {
   remaining: number;
   billDate: string;
   createdAt: string;
+  buyerBillData?: BuyerBillData;
 };
 
 const money = new Intl.NumberFormat("en-IN", {
@@ -53,7 +60,8 @@ export default function QuickBillPage() {
   const [apiError, setApiError] = useState<string | null>(null);
 
   // Form State
-  const [billType, setBillType] = useState<"Sale / bill to buyer" | "Purchase / bill from supplier">("Sale / bill to buyer");
+  const [billType, setBillType] = useState<"Sale / bill to buyer" | "Purchase / inward from supplier">("Sale / bill to buyer");
+  const [selectedBillForModal, setSelectedBillForModal] = useState<BuyerBillData | null>(null);
   const [companyId, setCompanyId] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [mobile, setMobile] = useState("");
@@ -145,13 +153,14 @@ export default function QuickBillPage() {
   });
 
   // Handle Bill Type change
-  const handleBillTypeChange = (newType: "Sale / bill to buyer" | "Purchase / bill from supplier") => {
+  const handleBillTypeChange = (newType: "Sale / bill to buyer" | "Purchase / inward from supplier") => {
     setBillType(newType);
     setCompanyId("");
     setCompanyName("");
     setMobile("");
     setFormError(null);
     setSavedMessage("");
+    setShowPreview(false);
   };
 
   // Handle Company Selection
@@ -187,129 +196,89 @@ export default function QuickBillPage() {
   const enteredQtyKg = isTonneUnit(unit) ? numQuantity * 1000 : numQuantity;
   const isExceedingStock = isSale && selectedScrapType ? enteredQtyKg > availableStockKg : false;
 
-  // WhatsApp Message Generator
   const formattedQty = formatQuantity(enteredQtyKg);
-  const whatsappMessage = `Hello ${companyName || "Sir/Madam"}, your ${billType.toLowerCase()} from ${businessName} (Bill #${billNumber}) is ${formattedQty} of ${scrapItemName || "Scrap"} at ${money.format(numRate)} per ${unit}. Total: ${money.format(total)}. ${isSale ? "Paid now" : "Paid to you"}: ${money.format(numPaid)}. Remaining: ${money.format(remaining)}. Contact: ${ownerName}.`;
-  const whatsappLink = `https://web.whatsapp.com/send?phone=${mobile.replace(/\D/g, "")}&text=${encodeURIComponent(whatsappMessage)}`;
 
-  // PDF Generator (Thermal receipt 80mm format)
-  const createPdf = () => {
-    const pdf = new jsPDF({ unit: "mm", format: [80, 180] });
-    const pdfMoney = (amount: number) =>
-      `Rs. ${amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    const center = (
-      text: string,
-      y: number,
-      size: number,
-      color: [number, number, number] = [35, 70, 62],
-    ) => {
-      pdf.setFontSize(size);
-      pdf.setTextColor(...color);
-      pdf.text(text, 40, y, { align: "center" });
-    };
-    const line = (y: number) => {
-      pdf.setDrawColor(195, 210, 203);
-      pdf.line(5, y, 75, y);
-    };
-    const right = (text: string, y: number, size = 9) => {
-      pdf.setFontSize(size);
-      pdf.setTextColor(45, 78, 68);
-      pdf.text(text, 75, y, { align: "right" });
-    };
-    const left = (text: string, y: number, size = 9) => {
-      pdf.setFontSize(size);
-      pdf.setTextColor(45, 78, 68);
-      pdf.text(text, 5, y);
-    };
-
-    center(businessName, 13, 15, [27, 74, 64]);
-    center("SCRAP TRADING BILL", 19, 8, [90, 110, 102]);
-    center(`Prepared by ${ownerName}`, 25, 8, [90, 110, 102]);
-    line(30);
-
-    left(`Bill no: ${billNumber}`, 37, 8);
-    right(`Date: ${billDate}`, 37, 8);
-    left(isSale ? "BILL TO (BUYER)" : "BILL FROM (SUPPLIER)", 46, 7);
-
-    const partyLines = pdf.splitTextToSize(companyName || "Valued Party", 68) as string[];
-    pdf.setFontSize(10);
-    pdf.setTextColor(27, 74, 64);
-    pdf.text(partyLines, 5, 52);
-
-    const partyEnd = 52 + (partyLines.length - 1) * 4;
-    line(partyEnd + 6);
-    const tableY = partyEnd + 14;
-
-    left("ITEM", tableY, 7);
-    right("AMOUNT", tableY, 7);
-    line(tableY + 3);
-
-    const itemLines = pdf.splitTextToSize(`${scrapItemName} (${isSale ? "Sale" : "Purchase"})`, 47) as string[];
-    pdf.setFontSize(9);
-    pdf.setTextColor(45, 78, 68);
-    pdf.text(itemLines, 5, tableY + 10);
-
-    const itemEnd = tableY + 10 + (itemLines.length - 1) * 4;
-    right(pdfMoney(total), itemEnd, 9);
-    left(`${formattedQty} x ${pdfMoney(numRate)} / ${unit}`, itemEnd + 6, 8);
-    line(itemEnd + 11);
-
-    left("Bill total", itemEnd + 19, 9);
-    right(pdfMoney(total), itemEnd + 19, 9);
-    left(isSale ? "Paid now" : "Paid to supplier", itemEnd + 27, 9);
-    right(pdfMoney(numPaid), itemEnd + 27, 9);
-    left("BALANCE / UDHARI", itemEnd + 36, 9);
-    right(pdfMoney(remaining), itemEnd + 36, 10);
-    line(itemEnd + 42);
-
-    center("Thank you for your business", itemEnd + 51, 8, [90, 110, 102]);
-    center("Generated by ScrapFlow", itemEnd + 57, 7, [125, 140, 132]);
-    return pdf;
+  // Live BuyerBillData object for sales
+  const currentBuyerBill: BuyerBillData = {
+    billNumber,
+    date: billDate,
+    buyer: {
+      id: companyId,
+      name: companyName || "Valued Buyer",
+      mobile: mobile || null,
+    },
+    items: [
+      {
+        name: scrapItemName || "Scrap Material",
+        quantityKg: enteredQtyKg,
+        unit,
+        rate: numRate,
+        amount: total,
+      },
+    ],
+    totalAmount: total,
+    amountPaid: numPaid,
+    outstandingAmount: remaining,
+    status: remaining === 0 ? "PAID" : numPaid > 0 ? "PARTIAL" : "UNPAID",
+    notes: `Quick bill #${billNumber}`,
   };
 
   const downloadPdf = () => {
-    if (!companyName || total <= 0) {
-      setFormError("Please select a company and enter a quantity and rate greater than zero.");
+    if (!isSale) {
+      setFormError("Bills/invoices are only generated for sales to buyers. Inward purchases are recorded without bills.");
       return;
     }
-    const pdf = createPdf();
-    pdf.save(`scrapflow-bill-${companyName.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`);
-    setSavedMessage("Bill PDF downloaded successfully.");
+    if (!companyName || total <= 0) {
+      setFormError("Please select a buyer and enter a quantity and rate greater than zero.");
+      return;
+    }
+    downloadBuyerBillPdf(currentBuyerBill, { businessName, ownerName });
+    setSavedMessage("Buyer bill PDF downloaded successfully.");
   };
 
   const sendOnWhatsApp = async () => {
-    if (!companyName || total <= 0) {
-      setFormError("Please select a company and enter a quantity and rate greater than zero.");
+    if (!isSale) {
+      setFormError("Bills/invoices are only generated for sales to buyers.");
       return;
     }
-    const pdf = createPdf();
-    const file = new File([pdf.output("blob")], `scrapflow-bill-${billNumber}.pdf`, {
-      type: "application/pdf",
-    });
-    const shareMessage = `${whatsappMessage} Please find the bill attached.`;
+    if (!companyName || total <= 0) {
+      setFormError("Please select a buyer and enter a quantity and rate greater than zero.");
+      return;
+    }
+    const message = getBuyerBillWhatsAppMessage(currentBuyerBill, { businessName, ownerName });
+    const targetPhone = mobile.replace(/\D/g, "");
+    const waUrl = targetPhone
+      ? `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`
+      : `https://web.whatsapp.com/send?text=${encodeURIComponent(message)}`;
 
-    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+    if (typeof navigator !== "undefined" && navigator.share) {
       try {
-        await navigator.share({ title: `Bill ${billNumber}`, text: shareMessage, files: [file] });
-        setSavedMessage("Bill shared successfully.");
-        return;
+        const pdf = generateBuyerBillPdf(currentBuyerBill, { businessName, ownerName });
+        const file = new File([pdf.output("blob")], `scrapflow-bill-${billNumber}.pdf`, {
+          type: "application/pdf",
+        });
+        if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+          await navigator.share({ title: `Bill ${billNumber}`, text: message, files: [file] });
+          setSavedMessage("Buyer bill shared successfully.");
+          return;
+        }
       } catch {
         /* User may cancel share sheet */
       }
     }
 
-    pdf.save(`scrapflow-bill-${companyName.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`);
-    window.open(whatsappLink, "_blank", "noopener,noreferrer");
+    downloadBuyerBillPdf(currentBuyerBill, { businessName, ownerName });
+    window.open(waUrl, "_blank", "noopener,noreferrer");
     setSavedMessage("PDF downloaded. WhatsApp Web opened; attach the downloaded PDF in the chat.");
   };
 
-  // Save Quick Bill to PostgreSQL via existing /api/sales or /api/purchases
+  // Save Quick Transaction to PostgreSQL via /api/sales or /api/purchases
   const saveBill = async () => {
     setFormError(null);
     setSavedMessage("");
 
     if (!companyId) {
-      setFormError("Please select a company.");
+      setFormError(isSale ? "Please select a buyer." : "Please select a supplier.");
       return;
     }
     if (!scrapTypeId) {
@@ -329,7 +298,7 @@ export default function QuickBillPage() {
       return;
     }
     if (numPaid > total) {
-      setFormError("Payment received cannot exceed the total bill amount.");
+      setFormError("Payment received cannot exceed the total amount.");
       return;
     }
     if (isSale && enteredQtyKg > availableStockKg) {
@@ -366,14 +335,62 @@ export default function QuickBillPage() {
 
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
-          throw new Error(body.error || `Failed to save quick bill (status ${res.status})`);
+          throw new Error(body.error || `Failed to save sale bill (status ${res.status})`);
         }
+
+        const buyerBillToSave: BuyerBillData = {
+          billNumber,
+          date: billDate,
+          buyer: {
+            id: companyId,
+            name: companyName,
+            mobile: mobile || null,
+          },
+          items: [
+            {
+              name: scrapItemName,
+              quantityKg: enteredQtyKg,
+              unit,
+              rate: numRate,
+              amount: total,
+            },
+          ],
+          totalAmount: total,
+          amountPaid: numPaid,
+          outstandingAmount: remaining,
+          status: remaining === 0 ? "PAID" : numPaid > 0 ? "PARTIAL" : "UNPAID",
+          notes: `Quick bill #${billNumber}`,
+        };
+
+        const newSavedBill: SavedQuickBill = {
+          id: billNumber,
+          billNumber,
+          billType,
+          companyName,
+          mobile,
+          scrapName: scrapItemName,
+          unit,
+          quantity: numQuantity,
+          rate: numRate,
+          total,
+          paymentReceived: numPaid,
+          remaining,
+          billDate,
+          createdAt: new Date().toISOString(),
+          buyerBillData: buyerBillToSave,
+        };
+
+        setRecentBills((prev) => [newSavedBill, ...prev]);
+        setSavedMessage(
+          `Sale recorded and Bill #${billNumber} generated successfully! Inventory stock and buyer receivable updated.`,
+        );
+        setSelectedBillForModal(buyerBillToSave);
       } else {
-        // Record as purchase in backend
+        // Record as purchase in backend (NO INVOICE/BILL FOR SUPPLIER)
         const payload = {
           supplierId: companyId,
           purchaseDate: new Date(billDate).toISOString(),
-          notes: `Quick bill #${billNumber}`,
+          notes: `Inward counter purchase`,
           amountPaid: numPaid,
           items: [
             {
@@ -393,32 +410,32 @@ export default function QuickBillPage() {
 
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
-          throw new Error(body.error || `Failed to save quick bill (status ${res.status})`);
+          throw new Error(body.error || `Failed to record inward purchase (status ${res.status})`);
         }
+
+        const newSavedBill: SavedQuickBill = {
+          id: `PUR-${Date.now()}`,
+          billNumber: "No Bill",
+          billType,
+          companyName,
+          mobile,
+          scrapName: scrapItemName,
+          unit,
+          quantity: numQuantity,
+          rate: numRate,
+          total,
+          paymentReceived: numPaid,
+          remaining,
+          billDate,
+          createdAt: new Date().toISOString(),
+        };
+
+        setRecentBills((prev) => [newSavedBill, ...prev]);
+        setSavedMessage(
+          `Purchase recorded successfully! Added to yard inventory and supplier payable ledger. (No bill generated for supplier)`,
+        );
+        setShowPreview(false);
       }
-
-      const newSavedBill: SavedQuickBill = {
-        id: billNumber,
-        billNumber,
-        billType,
-        companyName,
-        mobile,
-        scrapName: scrapItemName,
-        unit,
-        quantity: numQuantity,
-        rate: numRate,
-        total,
-        paymentReceived: numPaid,
-        remaining,
-        billDate,
-        createdAt: new Date().toISOString(),
-      };
-
-      setRecentBills((prev) => [newSavedBill, ...prev]);
-      setSavedMessage(
-        `Bill #${billNumber} saved successfully to the database! Inventory stock and ${isSale ? "buyer receivable" : "supplier payable"} updated.`,
-      );
-      setShowPreview(true);
 
       // Refresh live reference data (stock & balances)
       await loadData();
@@ -426,7 +443,7 @@ export default function QuickBillPage() {
       // Generate a new bill number for subsequent bills
       setBillNumber(`SF-${String(Date.now()).slice(-6)}`);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to save quick bill";
+      const msg = err instanceof Error ? err.message : "Failed to save transaction";
       setFormError(msg);
     } finally {
       setIsSubmitting(false);
@@ -459,17 +476,17 @@ export default function QuickBillPage() {
 
         <div className={styles.formGrid}>
           <label>
-            Bill type
+            Transaction / Bill type
             <select
               value={billType}
               onChange={(e) =>
                 handleBillTypeChange(
-                  e.target.value as "Sale / bill to buyer" | "Purchase / bill from supplier",
+                  e.target.value as "Sale / bill to buyer" | "Purchase / inward from supplier",
                 )
               }
             >
-              <option value="Sale / bill to buyer">Sale / bill to buyer</option>
-              <option value="Purchase / bill from supplier">Purchase / bill from supplier</option>
+              <option value="Sale / bill to buyer">Sale / bill to buyer (Bill generated)</option>
+              <option value="Purchase / inward from supplier">Purchase / inward from supplier (No bill)</option>
             </select>
           </label>
 
@@ -501,7 +518,7 @@ export default function QuickBillPage() {
           </label>
 
           <label>
-            Bill date *
+            Date *
             <input
               type="date"
               value={billDate}
@@ -606,11 +623,31 @@ export default function QuickBillPage() {
           </label>
         </div>
 
+        {!isSale && (
+          <div
+            style={{
+              padding: "10px 14px",
+              background: "#fef9ee",
+              border: "1px solid #f6e3ba",
+              borderRadius: "6px",
+              color: "#8a5814",
+              fontSize: "12px",
+              marginTop: "16px",
+            }}
+          >
+            <strong>ℹ️ Inward Purchase:</strong> Scrap bought from suppliers is recorded directly into yard inventory and supplier payable balance. In scrap trading, bills/invoices are strictly generated for sales to buyers.
+          </div>
+        )}
+
         <div className={styles.billTotal}>
-          <span>Total bill amount</span>
+          <span>{isSale ? "Total bill amount" : "Purchase cost total"}</span>
           <strong>{money.format(total)}</strong>
           <small>
-            {billType} · {isSale ? "Received" : "Paid"}: {money.format(numPaid)} · Remaining: {money.format(remaining)} tracked in Udhari
+            {isSale ? (
+              <>Sale to buyer · Received: {money.format(numPaid)} · Remaining udhari: {money.format(remaining)}</>
+            ) : (
+              <>Inward purchase · Paid to supplier: {money.format(numPaid)} · Remaining payable: {money.format(remaining)}</>
+            )}
           </small>
         </div>
 
@@ -621,92 +658,114 @@ export default function QuickBillPage() {
             disabled={loading || isSubmitting || !companyId || !scrapTypeId || total <= 0 || isExceedingStock}
             onClick={saveBill}
           >
-            {isSubmitting ? "Saving to database..." : "Save quick bill"}
+            {isSubmitting
+              ? "Saving to database..."
+              : isSale
+                ? "Save sale & generate bill"
+                : "Record purchase entry"}
           </button>
-          <button
-            className={styles.secondaryButton}
-            type="button"
-            onClick={() => setShowPreview((current) => !current)}
-          >
-            {showPreview ? "Hide bill preview" : "View bill preview"}
-          </button>
-          <button className={styles.pdfButton} type="button" onClick={downloadPdf}>
-            Download PDF
-          </button>
-          <button className={styles.whatsappButton} type="button" onClick={sendOnWhatsApp}>
-            Send bill on WhatsApp
-          </button>
+          {isSale && (
+            <>
+              <button
+                className={styles.secondaryButton}
+                type="button"
+                onClick={() => setShowPreview((current) => !current)}
+              >
+                {showPreview ? "Hide bill preview" : "View bill preview"}
+              </button>
+              <button className={styles.pdfButton} type="button" onClick={downloadPdf}>
+                Download PDF
+              </button>
+              <button className={styles.whatsappButton} type="button" onClick={sendOnWhatsApp}>
+                Send bill on WhatsApp
+              </button>
+            </>
+          )}
         </div>
 
         {savedMessage && <p className={styles.successMessage}>{savedMessage}</p>}
         {formError && <p className={styles.errorMessage}>{formError}</p>}
       </section>
 
-      {/* Interactive Bill Receipt Preview */}
-      {showPreview && (
+      {/* Interactive Buyer Bill Receipt Preview (Sales Only) */}
+      {showPreview && isSale && (
         <section className={styles.billPreview}>
           <div className={styles.billPreviewHeader}>
             <div>
-              <p className={styles.eyebrow}>RECEIPT PREVIEW · {billNumber}</p>
+              <p className={styles.eyebrow}>BUYER BILL PREVIEW · {billNumber}</p>
               <h2>{businessName}</h2>
               <small>
-                Prepared by {ownerName} · {isSale ? "Bill To" : "Bill From"} {companyName || "Valued Customer"} · {billDate}
+                Prepared by {ownerName} · Bill To {companyName || "Valued Buyer"} · {billDate}
               </small>
             </div>
             <strong>{money.format(total)}</strong>
           </div>
           <div className={styles.previewLine}>
             <span>
-              {scrapItemName || "Scrap item"} · {billType}
+              {scrapItemName || "Scrap item"} · Sale to buyer
             </span>
             <span>
               {formattedQty} × {money.format(numRate)} / {unit}
             </span>
           </div>
           <div className={styles.previewLine}>
-            <span>{isSale ? "Paid now" : "Paid to supplier"}</span>
+            <span>Payment received now</span>
             <strong>{money.format(numPaid)}</strong>
           </div>
           <div className={styles.previewLine}>
-            <span>Remaining udhari / balance</span>
+            <span>Remaining udhari to collect</span>
             <strong>{money.format(remaining)}</strong>
           </div>
           <p className={styles.previewNote}>
-            This bill can be downloaded as a thermal receipt PDF or shared directly with {companyName || "the party"} on WhatsApp Web.
+            Official buyer bill will be generated and can be downloaded as a PDF, printed, or sent via WhatsApp.
           </p>
         </section>
       )}
 
-      {/* Recent Quick Bills Session Log */}
+      {/* Recent Transactions Session Log */}
       {recentBills.length > 0 && (
         <section className={styles.panel}>
           <div className={styles.panelHeader}>
             <div>
-              <h2>Recent quick bills in this session</h2>
-              <p>Bills saved directly to PostgreSQL database.</p>
+              <h2>Recent transactions in this session</h2>
+              <p>Transactions saved directly to PostgreSQL database.</p>
             </div>
           </div>
           <div className={styles.dataList}>
-            {recentBills.map((b) => (
-              <div className={styles.dataRow} key={b.id}>
-                <div>
-                  <strong>
-                    {b.billNumber} · {b.companyName}
-                  </strong>
-                  <small>
-                    {b.billType} · {formatQuantity(isTonneUnit(b.unit) ? b.quantity * 1000 : b.quantity)} of {b.scrapName} @ {money.format(b.rate)} / {b.unit} · {b.billDate}
-                  </small>
+            {recentBills.map((b) => {
+              const isEntrySale = b.billType === "Sale / bill to buyer";
+              return (
+                <div className={styles.dataRow} key={b.id}>
+                  <div>
+                    <strong>
+                      {isEntrySale ? `Bill #${b.billNumber} · ${b.companyName}` : `Inward Purchase · ${b.companyName}`}
+                    </strong>
+                    <small>
+                      {isEntrySale ? "Sale to buyer (Bill generated)" : "Purchase from supplier (No bill issued)"} · {formatQuantity(isTonneUnit(b.unit) ? b.quantity * 1000 : b.quantity)} of {b.scrapName} @ {money.format(b.rate)} / {b.unit} · {b.billDate}
+                    </small>
+                  </div>
+                  <strong>{money.format(b.total)}</strong>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span
+                      className={`${styles.status} ${
+                        b.remaining === 0 ? styles.green : styles.amber
+                      }`}
+                    >
+                      {b.remaining === 0 ? "Settled" : `Due: ${money.format(b.remaining)}`}
+                    </span>
+                    {isEntrySale && b.buyerBillData && (
+                      <button
+                        type="button"
+                        className={styles.actionButton}
+                        onClick={() => setSelectedBillForModal(b.buyerBillData || null)}
+                      >
+                        View Bill
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <strong>{money.format(b.total)}</strong>
-                <span
-                  className={`${styles.status} ${
-                    b.remaining === 0 ? styles.green : styles.amber
-                  }`}
-                >
-                  {b.remaining === 0 ? "Settled" : `Due: ${money.format(b.remaining)}`}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
@@ -723,14 +782,20 @@ export default function QuickBillPage() {
         <div className={styles.helpGrid}>
           <div>
             <strong>Sale / bill to buyer</strong>
-            <small>Reduces available yard inventory and records buyer receivable in the database.</small>
+            <small>Reduces yard inventory, updates buyer receivable, and generates official printable/downloadable buyer invoice.</small>
           </div>
           <div>
-            <strong>Purchase / bill from supplier</strong>
-            <small>Increases available yard inventory and records supplier payable in the database.</small>
+            <strong>Purchase / inward from supplier</strong>
+            <small>Increases yard inventory and updates supplier payable. In scrap operations, no bill/invoice is generated for suppliers.</small>
           </div>
         </div>
       </section>
+
+      {/* Buyer Bill Modal */}
+      <BuyerBillModal
+        bill={selectedBillForModal}
+        onClose={() => setSelectedBillForModal(null)}
+      />
     </FeaturePage>
   );
 }

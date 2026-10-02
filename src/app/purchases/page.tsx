@@ -236,17 +236,17 @@ export default function PurchasesPage() {
   });
 
   return (
-    <FeaturePage active="/purchases" eyebrow="BUY SCRAP" title="Buy scrap" description="Record scrap purchased from suppliers and track what you still need to pay." actionLabel="New purchase" actionHref="#form">
+    <FeaturePage active="/purchases" eyebrow="BUY SCRAP" title="Buy scrap" description="Record inward scrap purchased from suppliers into inventory and ledger. In scrap trading, invoices are only generated for sales to buyers." actionLabel="New purchase" actionHref="#form">
       <SummaryCards cards={[
-        { label: "Purchases this month", value: formatCurrency(monthPurchaseTotal), note: `${currentMonthPurchases.length} purchases recorded`, tone: "amber" },
+        { label: "Purchases this month", value: formatCurrency(monthPurchaseTotal), note: `${currentMonthPurchases.length} inward purchases`, tone: "amber" },
         { label: "Quantity bought", value: formatQuantity(monthQuantityBought), note: "This month across materials", tone: "green" },
         { label: "Paid to suppliers", value: formatCurrency(monthPaidTotal), note: "Payments made with purchases", tone: "blue" },
         { label: "Still to pay", value: formatCurrency(totalStillToPay), note: totalStillToPay > 0 ? "Pending to suppliers" : "No payable amount", tone: "red" }
       ]} />
 
       <DataPanel
-        title="Recent purchases"
-        subtitle="Every purchase increases your stock and updates supplier ledger"
+        title="Recent inward purchases"
+        subtitle="Every purchase increases yard stock and updates supplier ledger (no bill issued)"
         rows={purchaseRows}
         loading={loading}
         error={error}
@@ -256,8 +256,8 @@ export default function PurchasesPage() {
       <section className={styles.panel} id="form">
         <div className={styles.panelHeader}>
           <div>
-            <h2>Record a purchase</h2>
-            <p>Enter purchase details below. Available stock and supplier payable ledger will be updated automatically in the database.</p>
+            <h2>Record inward purchase</h2>
+            <p>Enter purchase details below. Available stock and supplier payable ledger will be updated automatically in the database (no supplier invoice is issued).</p>
           </div>
         </div>
 

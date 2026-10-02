@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { BuyerBillModal } from "@/components/BuyerBillModal";
 import { DataPanel, FeaturePage, SummaryCards, type FeatureRow } from "@/components/FeaturePage";
 import styles from "@/components/FeaturePage.module.css";
+import { getSaleBillNumber, type BuyerBillData } from "@/lib/buyer-bill";
 import { formatLineItem, formatQuantity, isTonneUnit } from "@/lib/quantity";
 
 type Buyer = {
@@ -10,6 +12,9 @@ type Buyer = {
   name: string;
   type: "SUPPLIER" | "BUYER" | "BOTH";
   mobile: string | null;
+  contactPerson?: string | null;
+  address?: string | null;
+  gstNumber?: string | null;
   receivableBalance: string | number;
 };
 
@@ -40,6 +45,9 @@ type Sale = {
     id: string;
     name: string;
     mobile: string | null;
+    contactPerson?: string | null;
+    address?: string | null;
+    gstNumber?: string | null;
   };
   saleDate: string;
   notes: string | null;
@@ -74,6 +82,8 @@ export default function SalesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [activeBill, setActiveBill] = useState<BuyerBillData | null>(null);
+  const [lastGeneratedBill, setLastGeneratedBill] = useState<BuyerBillData | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -198,7 +208,52 @@ export default function SalesPage() {
         throw new Error(body.error || `Failed to record sale (status ${res.status})`);
       }
 
-      setFormSuccess("Sale created successfully! Stock reduced and buyer receivable ledger updated.");
+      const createdSale = await res.json();
+      const buyerObj = buyers.find((b) => b.id === buyerId);
+      const billNumber = getSaleBillNumber(createdSale);
+
+      const billData: BuyerBillData = {
+        id: createdSale.id,
+        billNumber,
+        date: new Date(createdSale.saleDate).toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+        buyer: {
+          id: buyerObj?.id || createdSale.buyer?.id,
+          name: buyerObj?.name || createdSale.buyer?.name || "Buyer",
+          mobile: buyerObj?.mobile || createdSale.buyer?.mobile,
+          contactPerson: buyerObj?.contactPerson || createdSale.buyer?.contactPerson,
+          address: buyerObj?.address || createdSale.buyer?.address,
+          gstNumber: buyerObj?.gstNumber || createdSale.buyer?.gstNumber,
+        },
+        items: Array.isArray(createdSale.items) && createdSale.items.length > 0
+          ? createdSale.items.map((i: { id: string; scrapType?: { name: string }; quantity: string | number; rate: string | number; amount: string | number }) => ({
+              id: i.id,
+              name: i.scrapType?.name || selectedScrapType?.name || "Scrap item",
+              quantityKg: Number(i.quantity) || 0,
+              rate: Number(i.rate) || 0,
+              amount: Number(i.amount) || 0,
+            }))
+          : [
+              {
+                name: selectedScrapType?.name || "Scrap item",
+                quantityKg: enteredQtyKg,
+                rate: numRate,
+                amount: calculatedTotal,
+              },
+            ],
+        totalAmount: Number(createdSale.totalAmount) || calculatedTotal,
+        amountPaid: Number(createdSale.amountReceived) || numReceived,
+        outstandingAmount: Number(createdSale.outstandingAmount) || remainingReceivable,
+        status: createdSale.status,
+        notes: createdSale.notes,
+      };
+
+      setLastGeneratedBill(billData);
+      setActiveBill(billData);
+      setFormSuccess(`Sale recorded successfully! Buyer bill #${billNumber} generated.`);
       setQuantity("");
       setRate("");
       setAmountReceived("0");
@@ -232,14 +287,43 @@ export default function SalesPage() {
     const statusLabel = s.status === "PAID" ? "Fully paid" : s.status === "PARTIAL" ? "Partial" : "Unpaid / Udhari";
     const tone = s.status === "PAID" ? ("green" as const) : s.status === "PARTIAL" ? ("amber" as const) : ("blue" as const);
     const remaining = Number(s.outstandingAmount) || 0;
+    const billNumber = getSaleBillNumber(s);
+
+    const billData: BuyerBillData = {
+      id: s.id,
+      billNumber,
+      date: dateText,
+      buyer: {
+        id: s.buyer.id,
+        name: s.buyer.name,
+        mobile: s.buyer.mobile,
+        contactPerson: s.buyer.contactPerson,
+        address: s.buyer.address,
+        gstNumber: s.buyer.gstNumber,
+      },
+      items: s.items.map((i) => ({
+        id: i.id,
+        name: i.scrapType.name,
+        quantityKg: Number(i.quantity) || 0,
+        rate: Number(i.rate) || 0,
+        amount: Number(i.amount) || 0,
+      })),
+      totalAmount: Number(s.totalAmount) || 0,
+      amountPaid: Number(s.amountReceived) || 0,
+      outstandingAmount: remaining,
+      status: s.status,
+      notes: s.notes,
+    };
 
     return {
       id: s.id,
-      title: s.buyer.name,
+      title: `${s.buyer.name} · ${billNumber}`,
       subtitle: `${itemsText} · ${dateText}${s.notes ? ` · (${s.notes})` : ""}`,
       amount: remaining > 0 ? `₹${Number(s.totalAmount).toLocaleString("en-IN")} (Due: ₹${remaining.toLocaleString("en-IN")})` : `₹${Number(s.totalAmount).toLocaleString("en-IN")}`,
       status: statusLabel,
       tone,
+      actionLabel: "View Bill",
+      onAction: () => setActiveBill(billData),
     };
   });
 
@@ -399,13 +483,30 @@ export default function SalesPage() {
             type="submit"
             disabled={isSubmitting || buyers.length === 0 || scrapTypes.length === 0 || isExceedingStock}
           >
-            {isSubmitting ? "Recording sale..." : "Create sale / delivery"}
+            {isSubmitting ? "Recording sale & generating bill..." : "Create sale & generate bill"}
           </button>
 
-          {formSuccess && <p className={styles.successMessage}>{formSuccess}</p>}
+          {formSuccess && (
+            <div style={{ marginTop: "12px" }}>
+              <p className={styles.successMessage}>{formSuccess}</p>
+              {lastGeneratedBill && (
+                <div style={{ marginTop: "8px" }}>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    style={{ marginTop: 0, padding: "8px 14px", fontSize: "12px", minHeight: "36px" }}
+                    onClick={() => setActiveBill(lastGeneratedBill)}
+                  >
+                    📄 View / Print / Download Bill #{lastGeneratedBill.billNumber}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {formError && <p className={styles.errorMessage}>{formError}</p>}
         </form>
       </section>
+      <BuyerBillModal bill={activeBill} onClose={() => setActiveBill(null)} />
     </FeaturePage>
   );
 }
