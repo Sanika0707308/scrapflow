@@ -97,7 +97,90 @@ export function DataPanel({
       deleteRow(row);
     }
   };
-  return <section className={styles.panel}><div className={styles.panelHeader}><div><h2>{title}</h2><p>{subtitle}</p></div><div className={styles.filterTools}><input className={styles.searchInput} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search" aria-label={`Search ${title}`} /><label className={styles.filterSelect}><span>Filter</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label={`Filter ${title}`}>{statuses.map((status) => <option key={status}>{status}</option>)}</select><ChevronDown size={14} /></label></div></div>{error && <p className={styles.errorMessage} style={{ margin: "14px 0 0" }}>{error}</p>}<div className={styles.dataList}>{loading ? <p className={styles.empty}>Loading...</p> : visibleRows.length ? visibleRows.map((row) => <div className={styles.dataRow} key={row.id || `${row.title}-${row.subtitle}`}><div><strong>{row.title}</strong><small>{row.subtitle}</small></div>{row.amount && <strong>{row.amount}</strong>}{row.status && <span className={`${styles.status} ${styles[row.tone || "blue"]}`}>{row.status}</span>}{row.actionLabel && row.onAction && <button className={styles.actionButton} type="button" title={row.actionLabel === "Edit" ? `Edit ${row.title}` : row.actionLabel} aria-label={row.actionLabel === "Edit" ? `Edit ${row.title}` : row.actionLabel} onClick={() => row.onAction!(row)}>{row.actionLabel === "Edit" && <Pencil size={11} aria-hidden="true" />}<span>{row.actionLabel}</span></button>}{allowDelete && <button className={styles.deleteButton} type="button" title={deleteTitle} aria-label={`${deleteTitle}: ${row.title}`} disabled={deletingId === (row.id || row.title)} onClick={() => handleDeleteClick(row)}><Trash2 size={13} aria-hidden="true" /><span>{deletingId === (row.id || row.title) ? "Deleting..." : "Delete"}</span></button>}</div>) : <p className={styles.empty}>{emptyText}</p>}</div></section>;
+  return (
+    <section className={styles.panel}>
+      <div className={styles.panelHeader}>
+        <div>
+          <h2>{title}</h2>
+          <p>{subtitle}</p>
+        </div>
+        <div className={styles.filterTools}>
+          <input
+            className={styles.searchInput}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search"
+            aria-label={`Search ${title}`}
+          />
+          <label className={styles.filterSelect}>
+            <span>Filter</span>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              aria-label={`Filter ${title}`}
+            >
+              {statuses.map((status) => (
+                <option key={status}>{status}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} />
+          </label>
+        </div>
+      </div>
+      {error && <p className={styles.errorMessage} style={{ margin: "14px 0 0" }}>{error}</p>}
+      <div className={styles.dataList}>
+        {loading ? (
+          <p className={styles.empty}>Loading...</p>
+        ) : visibleRows.length ? (
+          visibleRows.map((row) => (
+            <div className={styles.dataRow} key={row.id || `${row.title}-${row.subtitle}`}>
+              <div>
+                <strong>{row.title}</strong>
+                <small>{row.subtitle}</small>
+              </div>
+              {row.amount && <strong>{row.amount}</strong>}
+              {row.status && (
+                <span className={`${styles.status} ${styles[row.tone || "blue"]}`}>
+                  {row.status}
+                </span>
+              )}
+              {(Boolean(row.actionLabel && row.onAction) || allowDelete) && (
+                <div className={styles.rowActions}>
+                  {row.actionLabel && row.onAction && (
+                    <button
+                      className={styles.actionButton}
+                      type="button"
+                      title={row.actionLabel === "Edit" ? `Edit ${row.title}` : row.actionLabel}
+                      aria-label={row.actionLabel === "Edit" ? `Edit ${row.title}` : row.actionLabel}
+                      onClick={() => row.onAction!(row)}
+                    >
+                      {row.actionLabel === "Edit" && <Pencil size={11} aria-hidden="true" />}
+                      <span>{row.actionLabel}</span>
+                    </button>
+                  )}
+                  {allowDelete && (
+                    <button
+                      className={styles.deleteButton}
+                      type="button"
+                      title={deleteTitle}
+                      aria-label={`${deleteTitle}: ${row.title}`}
+                      disabled={deletingId === (row.id || row.title)}
+                      onClick={() => handleDeleteClick(row)}
+                    >
+                      <Trash2 size={11} aria-hidden="true" />
+                      <span>{deletingId === (row.id || row.title) ? "Deleting..." : "Delete"}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))
+        ) : (
+          <p className={styles.empty}>{emptyText}</p>
+        )}
+      </div>
+    </section>
+  );
 }
 
 export function FormPanel({ title, fields, storageKey = title, onSave, requiredFields = fields, disableLocalStorage = false }: { title: string; fields: string[]; storageKey?: string; onSave?: (values: Record<string, string>) => Promise<boolean | void> | void; requiredFields?: string[]; disableLocalStorage?: boolean }) {
