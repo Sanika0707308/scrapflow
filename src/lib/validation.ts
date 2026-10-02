@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validateEmail, validateGstin, validatePhoneNumber } from "@/lib/company-validation";
 
 export const companyTypeSchema = z.enum(["SUPPLIER", "BUYER", "BOTH"]);
 export const paymentDirectionSchema = z.enum(["IN", "OUT"]);
@@ -7,16 +8,65 @@ export const ledgerCategorySchema = z.enum(["RECEIVABLE", "PAYABLE"]);
 const decimalInput = z.union([z.string(), z.number()]);
 
 export const companyCreateSchema = z.object({
-  name: z.string().trim().min(1),
+  name: z.string().trim().min(1, "Company name is required"),
   type: companyTypeSchema,
   contactPerson: z.string().trim().optional(),
-  mobile: z.string().trim().optional(),
-  email: z.union([z.string().trim().email(), z.literal("")]).optional(),
-  gstNumber: z.string().trim().optional(),
+  mobile: z.string().trim().superRefine((val, ctx) => {
+    const res = validatePhoneNumber(val);
+    if (!res.valid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: res.error || "Invalid phone number",
+      });
+    }
+  }),
+  email: z
+    .string()
+    .trim()
+    .optional()
+    .superRefine((val, ctx) => {
+      if (!val) return;
+      const res = validateEmail(val);
+      if (!res.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: res.error || "Invalid email address",
+        });
+      }
+    }),
+  gstNumber: z
+    .string()
+    .trim()
+    .optional()
+    .superRefine((val, ctx) => {
+      if (!val) return;
+      const res = validateGstin(val);
+      if (!res.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: res.error || "Invalid GSTIN",
+        });
+      }
+    }),
   address: z.string().trim().optional(),
 });
 
-export const companyUpdateSchema = companyCreateSchema.partial();
+export const companyUpdateSchema = companyCreateSchema.partial().extend({
+  mobile: z
+    .string()
+    .trim()
+    .optional()
+    .superRefine((val, ctx) => {
+      if (val === undefined) return;
+      const res = validatePhoneNumber(val);
+      if (!res.valid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: res.error || "Invalid phone number",
+        });
+      }
+    }),
+});
 
 export const scrapTypeCreateSchema = z.object({
   name: z.string().trim().min(1),
