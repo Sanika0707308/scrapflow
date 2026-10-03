@@ -1,5 +1,5 @@
 import { jsonOk, withApiHandler, jsonBody } from "@/lib/api-handler";
-import { getScrapType, updateScrapType } from "@/server/scrap-types";
+import { deleteScrapType, getScrapType, updateScrapType } from "@/server/scrap-types";
 
 export const runtime = "nodejs";
 
@@ -14,3 +14,9 @@ export const PATCH = withApiHandler(async (request, context: Context) => {
   const { id } = await context.params;
   return jsonOk(await updateScrapType(id, await jsonBody(request)));
 });
+
+export const DELETE = withApiHandler(async (_request, context: Context) => {
+  const { id } = await context.params;
+  return jsonOk(await deleteScrapType(id));
+});
+

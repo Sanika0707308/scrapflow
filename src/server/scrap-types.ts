@@ -19,6 +19,18 @@ export async function getScrapType(id: string) {
 
 export async function createScrapType(input: unknown) {
   const data = scrapTypeCreateSchema.parse(input);
+  const trimmedName = data.name.trim();
+
+  // Prevent duplicate scrap type names (case-insensitive)
+  const existing = await prisma.scrapType.findFirst({
+    where: {
+      name: { equals: trimmedName, mode: "insensitive" },
+    },
+  });
+  if (existing) {
+    throw conflict(`A scrap type with the name "${trimmedName}" already exists.`);
+  }
+
   const rawOpening =
     data.openingStock === undefined ? new Decimal(0) : nonNegativeQuantity(data.openingStock, "openingStock");
   const opening = isTonneUnit(data.unit) ? rawOpening.mul(1000) : rawOpening;
@@ -26,7 +38,7 @@ export async function createScrapType(input: unknown) {
   return prisma.$transaction(async (tx) => {
     const scrapType = await tx.scrapType.create({
       data: {
-        name: data.name,
+        name: trimmedName,
         category: data.category?.trim() || null,
         unit: data.unit,
         currentStock: new Decimal(0),
@@ -50,10 +62,24 @@ export async function createScrapType(input: unknown) {
 export async function updateScrapType(id: string, input: unknown) {
   await getScrapType(id);
   const data = scrapTypeUpdateSchema.parse(input);
+
+  if (data.name !== undefined) {
+    const trimmedName = data.name.trim();
+    const existing = await prisma.scrapType.findFirst({
+      where: {
+        name: { equals: trimmedName, mode: "insensitive" },
+        id: { not: id },
+      },
+    });
+    if (existing) {
+      throw conflict(`A scrap type with the name "${trimmedName}" already exists.`);
+    }
+  }
+
   return prisma.scrapType.update({
     where: { id },
     data: {
-      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.name !== undefined ? { name: data.name.trim() } : {}),
       ...(data.category !== undefined ? { category: data.category.trim() || null } : {}),
       ...(data.unit !== undefined ? { unit: data.unit } : {}),
       ...(data.notes !== undefined ? { notes: data.notes.trim() || null } : {}),

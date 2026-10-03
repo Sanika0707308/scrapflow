@@ -69,18 +69,18 @@ export const companyUpdateSchema = companyCreateSchema.partial().extend({
 });
 
 export const scrapTypeCreateSchema = z.object({
-  name: z.string().trim().min(1),
+  name: z.string().trim().min(1, "Scrap type name is required"),
   category: z.string().trim().optional(),
-  unit: z.string().trim().min(1).default("Tonne (MT)"),
+  unit: z.string().trim().min(1, "Unit is required").default("Tonne (MT)"),
   openingStock: decimalInput.optional(),
-  notes: z.string().optional(),
+  notes: z.string().trim().optional(),
 });
 
 export const scrapTypeUpdateSchema = z.object({
-  name: z.string().trim().min(1).optional(),
+  name: z.string().trim().min(1, "Scrap type name cannot be empty").optional(),
   category: z.string().trim().optional(),
   unit: z.string().trim().min(1).optional(),
-  notes: z.string().optional(),
+  notes: z.string().trim().optional(),
 });
 
 export const documentItemSchema = z.object({
