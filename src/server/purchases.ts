@@ -45,8 +45,15 @@ export async function createPurchase(input: unknown) {
     if (totalAmount.lte(0)) throw badRequest("Purchase total must be greater than zero");
 
     const amountPaid = data.amountPaid === undefined ? new Decimal(0) : money(data.amountPaid, "amountPaid");
+    if (amountPaid.lt(0)) throw badRequest("Amount paid cannot be negative");
     if (amountPaid.gt(totalAmount)) throw badRequest("Amount paid cannot exceed purchase total");
     const outstandingAmount = totalAmount.sub(amountPaid);
+
+    if (amountPaid.gt(0)) {
+      if (!data.paymentMethod || !data.paymentMethod.trim()) {
+        throw badRequest("Payment method is required when amount paid is greater than 0");
+      }
+    }
 
     const purchase = await tx.purchase.create({
       data: {
@@ -90,13 +97,17 @@ export async function createPurchase(input: unknown) {
     });
 
     if (amountPaid.gt(0)) {
+      const paymentDate = data.paymentDate ?? purchase.purchaseDate;
+      const paymentMethod = data.paymentMethod!.trim();
+
       const payment = await tx.payment.create({
         data: {
           companyId: supplier.id,
           direction: "OUT",
-          paymentDate: purchase.purchaseDate,
+          paymentDate,
           amount: amountPaid,
-          notes: "Paid with purchase",
+          method: paymentMethod,
+          notes: data.notes?.trim() ? `Paid with purchase: ${data.notes.trim()}` : "Paid with purchase",
           purchaseId: purchase.id,
         },
       });
@@ -105,8 +116,8 @@ export async function createPurchase(input: unknown) {
         companyId: supplier.id,
         type: "PAYMENT_OUT",
         category: "PAYABLE",
-        entryDate: purchase.purchaseDate,
-        description: `Payment against purchase from ${supplier.name}`,
+        entryDate: paymentDate,
+        description: `Payment against purchase from ${supplier.name} (${paymentMethod})`,
         debit: new Decimal(0),
         credit: amountPaid,
         purchaseId: purchase.id,

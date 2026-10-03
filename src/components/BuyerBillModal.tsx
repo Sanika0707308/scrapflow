@@ -298,7 +298,7 @@ export function BuyerBillModal({
               </strong>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", color: "#206d48" }}>
-              <span>Amount Paid Now</span>
+              <span>Amount Paid Now {bill.paymentMethod ? `(${bill.paymentMethod})` : ""}</span>
               <strong>{formatBillCurrency(bill.amountPaid)}</strong>
             </div>
             <div

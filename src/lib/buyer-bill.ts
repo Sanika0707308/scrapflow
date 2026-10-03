@@ -28,6 +28,7 @@ export type BuyerBillData = {
   amountPaid: number;
   outstandingAmount: number;
   status: "PAID" | "PARTIAL" | "UNPAID";
+  paymentMethod?: string | null;
   notes?: string | null;
 };
 

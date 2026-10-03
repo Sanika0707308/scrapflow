@@ -58,6 +58,7 @@ type ApiSale = {
   outstandingAmount: string | number;
   status: "PAID" | "PARTIAL" | "UNPAID";
   items: ApiSaleItem[];
+  payments?: Array<{ id: string; method?: string | null; amount: string | number }>;
   createdAt: string;
 };
 
@@ -84,6 +85,8 @@ export default function QuickBillPage() {
   const [rate, setRate] = useState("");
   const [billDate, setBillDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [amountReceived, setAmountReceived] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split("T")[0]);
 
   // Field-level validation errors
   const [fieldErrors, setFieldErrors] = useState<{
@@ -93,6 +96,8 @@ export default function QuickBillPage() {
     rate?: string;
     date?: string;
     amountReceived?: string;
+    paymentMethod?: string;
+    paymentDate?: string;
   }>({});
   const [touched, setTouched] = useState<{
     customer?: boolean;
@@ -101,6 +106,8 @@ export default function QuickBillPage() {
     rate?: boolean;
     date?: boolean;
     amountReceived?: boolean;
+    paymentMethod?: boolean;
+    paymentDate?: boolean;
   }>({});
 
   // UI state
@@ -182,6 +189,17 @@ export default function QuickBillPage() {
   const parsedReceived = rawReceived === "" ? 0 : Number(rawReceived);
   const numReceived = !isNaN(parsedReceived) && parsedReceived >= 0 ? parsedReceived : 0;
   const remainingDue = Math.max(totalAmount - numReceived, 0);
+
+  // Automatic calculation of Payment Status:
+  // 0 = Unpaid
+  // Greater than 0 but less than total = Partially Paid
+  // Equal to total = Paid
+  const billPaymentStatus: "Unpaid" | "Partially Paid" | "Paid" =
+    totalAmount > 0 && numReceived >= totalAmount
+      ? "Paid"
+      : numReceived > 0 && numReceived < totalAmount
+        ? "Partially Paid"
+        : "Unpaid";
 
   // Validation functions
   const validateCustomer = (id: string): string | undefined => {
@@ -297,6 +315,8 @@ export default function QuickBillPage() {
       rate: true,
       date: true,
       amountReceived: true,
+      paymentMethod: true,
+      paymentDate: true,
     });
 
     const custErr = validateCustomer(customerId);
@@ -314,6 +334,13 @@ export default function QuickBillPage() {
       }
     }
 
+    const methErr = numReceived > 0 && (!paymentMethod || !paymentMethod.trim())
+      ? "Payment method is required when amount received is greater than 0."
+      : undefined;
+    const pDateErr = numReceived > 0 && (!paymentDate || !paymentDate.trim())
+      ? "Payment date is required when amount received is greater than 0."
+      : undefined;
+
     const errors = {
       customer: custErr,
       scrapType: scrapErr,
@@ -321,11 +348,13 @@ export default function QuickBillPage() {
       rate: rateErr,
       date: dateErr,
       amountReceived: recErr,
+      paymentMethod: methErr,
+      paymentDate: pDateErr,
     };
     setFieldErrors(errors);
 
-    if (custErr || scrapErr || qtyErr || rateErr || dateErr || recErr) {
-      const firstError = custErr || scrapErr || qtyErr || rateErr || dateErr || recErr;
+    if (custErr || scrapErr || qtyErr || rateErr || dateErr || recErr || methErr || pDateErr) {
+      const firstError = custErr || scrapErr || qtyErr || rateErr || dateErr || recErr || methErr || pDateErr;
       setFormError(firstError || "Please fill in all required fields correctly.");
       return;
     }
@@ -346,6 +375,8 @@ export default function QuickBillPage() {
         saleDate: new Date(billDate).toISOString(),
         notes: "Quick bill",
         amountReceived: numReceived,
+        paymentMethod: numReceived > 0 ? paymentMethod.trim() : undefined,
+        paymentDate: numReceived > 0 ? new Date(paymentDate).toISOString() : undefined,
         items: [
           {
             scrapTypeId,
@@ -395,6 +426,7 @@ export default function QuickBillPage() {
         amountPaid: numReceived,
         outstandingAmount: remainingDue,
         status: remainingDue === 0 ? "PAID" : numReceived > 0 ? "PARTIAL" : "UNPAID",
+        paymentMethod: numReceived > 0 ? paymentMethod.trim() : null,
         notes: `Quick bill #${actualBillNumber}`,
       };
 
@@ -402,6 +434,8 @@ export default function QuickBillPage() {
       setQuantity("");
       setRate("");
       setAmountReceived("");
+      setPaymentMethod("Cash");
+      setPaymentDate(new Date().toISOString().split("T")[0]);
       setFieldErrors({});
       setTouched({});
       setSavedMessage(`Sale recorded and Bill #${actualBillNumber} generated successfully! Stock and customer udhari updated.`);
@@ -455,6 +489,7 @@ export default function QuickBillPage() {
       amountPaid: Number(s.amountReceived),
       outstandingAmount: due,
       status: s.status,
+      paymentMethod: s.payments && s.payments.length > 0 ? s.payments[0].method : null,
       notes: s.notes,
     };
 
@@ -659,41 +694,123 @@ export default function QuickBillPage() {
               )}
             </label>
 
-            {/* Optional Amount Received Now */}
-            <label>
-              <span>Amount Received Now (₹)</span>
-              <input
-                type="number"
-                step="any"
-                min="0"
-                value={amountReceived}
-                onChange={(e) => handleAmountReceivedChange(e.target.value)}
-                placeholder="0.00 (Leave empty for full udhari)"
-                style={fieldErrors.amountReceived ? { borderColor: "#b45e4d" } : undefined}
-              />
-              {fieldErrors.amountReceived ? (
-                <span style={{ color: "#b45e4d", fontSize: "11px", marginTop: "2px" }}>
-                  {fieldErrors.amountReceived}
-                </span>
-              ) : (
-                <span style={{ color: "#8a9b96", fontSize: "10px", marginTop: "2px" }}>
-                  Optional. Remaining balance is saved to customer udhari
-                </span>
-              )}
-            </label>
+            {/* Compact Payment Section */}
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                borderTop: "1px solid #dfe8e4",
+                paddingTop: "16px",
+                marginTop: "4px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "12px",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: "14px", color: "#163a35" }}>Payment Received</strong>
+                  <span style={{ fontSize: "12px", color: "#61766e", marginLeft: "8px" }}>(Optional)</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ fontSize: "12px", color: "#61766e" }}>Payment Status:</span>
+                  <span
+                    className={`${styles.status} ${
+                      billPaymentStatus === "Paid"
+                        ? styles.green
+                        : billPaymentStatus === "Partially Paid"
+                          ? styles.amber
+                          : styles.red
+                    }`}
+                    style={{ fontSize: "11px", padding: "2px 8px" }}
+                  >
+                    {billPaymentStatus}
+                  </span>
+                </div>
+              </div>
+
+              <div className={styles.formGrid}>
+                <label>
+                  <span>Amount Received (₹)</span>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={amountReceived}
+                    onChange={(e) => handleAmountReceivedChange(e.target.value)}
+                    placeholder="0.00 (0 for full udhari)"
+                    style={fieldErrors.amountReceived ? { borderColor: "#b45e4d" } : undefined}
+                  />
+                  {fieldErrors.amountReceived ? (
+                    <span style={{ color: "#b45e4d", fontSize: "11px", marginTop: "2px" }}>
+                      {fieldErrors.amountReceived}
+                    </span>
+                  ) : (
+                    <span style={{ color: "#8a9b96", fontSize: "10px", marginTop: "2px" }}>
+                      0 = Unpaid. Received amount creates an official receipt and reduces udhari.
+                    </span>
+                  )}
+                </label>
+
+                {numReceived > 0 && (
+                  <>
+                    <label>
+                      <span>
+                        Payment Method <span style={{ color: "#b45e4d" }}>*</span>
+                      </span>
+                      <select
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        required
+                      >
+                        <option value="Cash">Cash</option>
+                        <option value="Bank Transfer">Bank Transfer (NEFT / RTGS / IMPS)</option>
+                        <option value="UPI">UPI</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="Other">Other</option>
+                      </select>
+                      {fieldErrors.paymentMethod && (
+                        <span style={{ color: "#b45e4d", fontSize: "11px", marginTop: "2px" }}>
+                          {fieldErrors.paymentMethod}
+                        </span>
+                      )}
+                    </label>
+
+                    <label>
+                      <span>
+                        Payment Date <span style={{ color: "#b45e4d" }}>*</span>
+                      </span>
+                      <input
+                        type="date"
+                        value={paymentDate}
+                        onChange={(e) => setPaymentDate(e.target.value)}
+                        required
+                      />
+                      {fieldErrors.paymentDate && (
+                        <span style={{ color: "#b45e4d", fontSize: "11px", marginTop: "2px" }}>
+                          {fieldErrors.paymentDate}
+                        </span>
+                      )}
+                    </label>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Automatic Calculation Display */}
           <div className={styles.billTotal} style={{ marginTop: "18px" }}>
-            <span>Total</span>
+            <span>Bill Total</span>
             <strong>{money.format(totalAmount)}</strong>
             <small>
               {numQuantity > 0 && numRate > 0 ? (
                 <>
-                  {numQuantity} {unit} × {money.format(numRate)} / {unit}
-                  {numReceived > 0 && (
-                    <> · Received: {money.format(numReceived)} · Due (Udhari): {money.format(remainingDue)}</>
-                  )}
+                  {numQuantity} {unit} × {money.format(numRate)} / {unit} · Received: {money.format(numReceived)} · Outstanding Receivable: {money.format(remainingDue)} · Status: <strong>{billPaymentStatus}</strong>
                 </>
               ) : (
                 "Total Amount = Quantity × Rate"

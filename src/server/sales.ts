@@ -46,8 +46,15 @@ export async function createSale(input: unknown) {
 
     const amountReceived =
       data.amountReceived === undefined ? new Decimal(0) : money(data.amountReceived, "amountReceived");
+    if (amountReceived.lt(0)) throw badRequest("Amount received cannot be negative");
     if (amountReceived.gt(totalAmount)) throw badRequest("Amount received cannot exceed sale total");
     const outstandingAmount = totalAmount.sub(amountReceived);
+
+    if (amountReceived.gt(0)) {
+      if (!data.paymentMethod || !data.paymentMethod.trim()) {
+        throw badRequest("Payment method is required when amount received is greater than 0");
+      }
+    }
 
     const requiredByType = new Map<string, InstanceType<typeof Decimal>>();
     for (const item of items) {
@@ -103,13 +110,17 @@ export async function createSale(input: unknown) {
     });
 
     if (amountReceived.gt(0)) {
+      const paymentDate = data.paymentDate ?? sale.saleDate;
+      const paymentMethod = data.paymentMethod!.trim();
+
       const payment = await tx.payment.create({
         data: {
           companyId: buyer.id,
           direction: "IN",
-          paymentDate: sale.saleDate,
+          paymentDate,
           amount: amountReceived,
-          notes: "Received with sale",
+          method: paymentMethod,
+          notes: data.notes?.trim() ? `Received with sale: ${data.notes.trim()}` : "Received with sale",
           saleId: sale.id,
         },
       });
@@ -118,8 +129,8 @@ export async function createSale(input: unknown) {
         companyId: buyer.id,
         type: "PAYMENT_IN",
         category: "RECEIVABLE",
-        entryDate: sale.saleDate,
-        description: `Payment against sale to ${buyer.name}`,
+        entryDate: paymentDate,
+        description: `Payment against sale to ${buyer.name} (${paymentMethod})`,
         debit: new Decimal(0),
         credit: amountReceived,
         saleId: sale.id,

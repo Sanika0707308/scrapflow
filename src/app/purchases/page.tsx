@@ -70,6 +70,8 @@ export default function PurchasesPage() {
   const [quantity, setQuantity] = useState("");
   const [rate, setRate] = useState("");
   const [amountPaid, setAmountPaid] = useState("0");
+  const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -126,8 +128,21 @@ export default function PurchasesPage() {
 
   const selectedScrapType = scrapTypes.find((s) => s.id === scrapTypeId);
   const calculatedTotal = (Number(quantity) || 0) * (Number(rate) || 0);
-  const numPaid = Number(amountPaid) || 0;
+  const rawPaid = typeof amountPaid === "string" ? amountPaid.trim() : "";
+  const parsedPaid = rawPaid === "" ? 0 : Number(rawPaid);
+  const numPaid = !isNaN(parsedPaid) && parsedPaid >= 0 ? parsedPaid : 0;
   const remainingPayable = Math.max(calculatedTotal - numPaid, 0);
+
+  // Automatic calculation of Payment Status:
+  // 0 = Unpaid
+  // Greater than 0 but less than total = Partially Paid
+  // Equal to total = Paid
+  const purchasePaymentStatus: "Unpaid" | "Partially Paid" | "Paid" =
+    calculatedTotal > 0 && numPaid >= calculatedTotal
+      ? "Paid"
+      : numPaid > 0 && numPaid < calculatedTotal
+        ? "Partially Paid"
+        : "Unpaid";
 
   const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,15 +177,25 @@ export default function PurchasesPage() {
       setFormError("Rate per unit must be greater than 0.");
       return;
     }
-    const rawPaid = typeof amountPaid === "string" ? amountPaid.trim() : "";
-    const paid = rawPaid === "" ? 0 : Number(rawPaid);
-    if (isNaN(paid) || paid < 0) {
-      setFormError("Amount paid cannot be negative.");
-      return;
+    if (rawPaid !== "") {
+      if (isNaN(parsedPaid) || parsedPaid < 0) {
+        setFormError("Amount paid cannot be negative.");
+        return;
+      }
+      if (calculatedTotal > 0 && parsedPaid > calculatedTotal) {
+        setFormError("Amount paid cannot exceed purchase total.");
+        return;
+      }
     }
-    if (paid > calculatedTotal) {
-      setFormError("Amount paid cannot exceed purchase total.");
-      return;
+    if (numPaid > 0) {
+      if (!paymentMethod || !paymentMethod.trim()) {
+        setFormError("Payment method is required when amount paid is greater than 0.");
+        return;
+      }
+      if (!paymentDate || !paymentDate.trim()) {
+        setFormError("Payment date is required when amount paid is greater than 0.");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -179,7 +204,9 @@ export default function PurchasesPage() {
         supplierId,
         purchaseDate: new Date(purchaseDate).toISOString(),
         notes: notes.trim() || undefined,
-        amountPaid: paid,
+        amountPaid: numPaid,
+        paymentMethod: numPaid > 0 ? paymentMethod.trim() : undefined,
+        paymentDate: numPaid > 0 ? new Date(paymentDate).toISOString() : undefined,
         items: [
           {
             scrapTypeId,
@@ -201,10 +228,12 @@ export default function PurchasesPage() {
         throw new Error(body.error || `Failed to record purchase (status ${res.status})`);
       }
 
-      setFormSuccess("Purchase recorded successfully! Stock and supplier payable updated.");
+      setFormSuccess("Purchase recorded successfully! Stock, payment, and supplier payable updated.");
       setQuantity("");
       setRate("");
       setAmountPaid("0");
+      setPaymentMethod("Cash");
+      setPaymentDate(new Date().toISOString().split("T")[0]);
       setNotes("");
       await loadData();
     } catch (err: unknown) {
@@ -364,18 +393,6 @@ export default function PurchasesPage() {
               />
             </label>
 
-            <label>
-              Amount paid now (₹)
-              <input
-                type="number"
-                step="any"
-                min="0"
-                placeholder="0.00"
-                value={amountPaid}
-                onChange={(e) => setAmountPaid(e.target.value)}
-              />
-            </label>
-
             <label style={{ gridColumn: "1 / -1" }}>
               Notes / Vehicle / Gate pass
               <input
@@ -385,18 +402,105 @@ export default function PurchasesPage() {
                 onChange={(e) => setNotes(e.target.value)}
               />
             </label>
+
+            {/* Compact Payment Section */}
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                borderTop: "1px solid #dfe8e4",
+                paddingTop: "16px",
+                marginTop: "4px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "12px",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: "14px", color: "#163a35" }}>Payment to Supplier</strong>
+                  <span style={{ fontSize: "12px", color: "#61766e", marginLeft: "8px" }}>(Optional)</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ fontSize: "12px", color: "#61766e" }}>Payment Status:</span>
+                  <span
+                    className={`${styles.status} ${
+                      purchasePaymentStatus === "Paid"
+                        ? styles.green
+                        : purchasePaymentStatus === "Partially Paid"
+                          ? styles.amber
+                          : styles.red
+                    }`}
+                    style={{ fontSize: "11px", padding: "2px 8px" }}
+                  >
+                    {purchasePaymentStatus}
+                  </span>
+                </div>
+              </div>
+
+              <div className={styles.formGrid}>
+                <label>
+                  Amount Paid (₹)
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="0.00"
+                    value={amountPaid}
+                    onChange={(e) => setAmountPaid(e.target.value)}
+                  />
+                  <small style={{ color: "#61766e" }}>
+                    0 = Unpaid. Paid amount creates an official supplier payment record.
+                  </small>
+                </label>
+
+                {numPaid > 0 && (
+                  <>
+                    <label>
+                      Payment Method *
+                      <select
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        required
+                      >
+                        <option value="Cash">Cash</option>
+                        <option value="Bank Transfer">Bank Transfer (NEFT / RTGS / IMPS)</option>
+                        <option value="UPI">UPI</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      Payment Date *
+                      <input
+                        type="date"
+                        value={paymentDate}
+                        onChange={(e) => setPaymentDate(e.target.value)}
+                        required
+                      />
+                    </label>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className={styles.billTotal}>
-            <span>Calculated purchase total</span>
+            <span>Purchase Total</span>
             <strong>{formatCurrency(calculatedTotal)}</strong>
             <small>
-              Paid now: {formatCurrency(numPaid)} · Remaining payable to supplier: {formatCurrency(remainingPayable)}
+              Amount Paid: {formatCurrency(numPaid)} · Outstanding Payable: {formatCurrency(remainingPayable)} · Status: <strong>{purchasePaymentStatus}</strong>
             </small>
           </div>
 
           <button className={styles.saveButton} type="submit" disabled={isSubmitting || suppliers.length === 0 || scrapTypes.length === 0}>
-            {isSubmitting ? "Recording purchase..." : "Record purchase"}
+            {isSubmitting ? "Recording purchase & payment..." : "Record purchase"}
           </button>
 
           {formSuccess && <p className={styles.successMessage}>{formSuccess}</p>}

@@ -91,18 +91,22 @@ export const documentItemSchema = z.object({
 });
 
 export const purchaseCreateSchema = z.object({
-  supplierId: z.string().min(1),
+  supplierId: z.string().min(1, "Supplier is required"),
   purchaseDate: z.coerce.date(),
   notes: z.string().optional(),
   amountPaid: decimalInput.optional(),
+  paymentMethod: z.string().trim().optional(),
+  paymentDate: z.coerce.date().optional(),
   items: z.array(documentItemSchema).min(1),
 });
 
 export const saleCreateSchema = z.object({
-  buyerId: z.string().min(1),
+  buyerId: z.string().min(1, "Buyer is required"),
   saleDate: z.coerce.date(),
   notes: z.string().optional(),
   amountReceived: decimalInput.optional(),
+  paymentMethod: z.string().trim().optional(),
+  paymentDate: z.coerce.date().optional(),
   items: z.array(documentItemSchema).min(1),
 });
 
