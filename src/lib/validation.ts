@@ -70,15 +70,15 @@ export const companyUpdateSchema = companyCreateSchema.partial().extend({
 
 export const scrapTypeCreateSchema = z.object({
   name: z.string().trim().min(1, "Scrap type name is required"),
-  category: z.string().trim().optional(),
-  unit: z.string().trim().min(1, "Unit is required").default("Tonne (MT)"),
+  category: z.string().trim().min(1, "Category is required"),
+  unit: z.string().trim().min(1).default("Tonne (MT)").optional(),
   openingStock: decimalInput.optional(),
   notes: z.string().trim().optional(),
 });
 
 export const scrapTypeUpdateSchema = z.object({
   name: z.string().trim().min(1, "Scrap type name cannot be empty").optional(),
-  category: z.string().trim().optional(),
+  category: z.string().trim().min(1, "Category cannot be empty").optional(),
   unit: z.string().trim().min(1).optional(),
   notes: z.string().trim().optional(),
 });

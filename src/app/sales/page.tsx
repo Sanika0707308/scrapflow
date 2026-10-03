@@ -149,15 +149,25 @@ export default function SalesPage() {
     setFormError(null);
     setFormSuccess(null);
 
-    if (!buyerId) {
+    if (!buyerId || !buyerId.trim()) {
       setFormError("Please select a buyer company.");
       return;
     }
-    if (!scrapTypeId) {
+    if (!saleDate || !saleDate.trim()) {
+      setFormError("Please select a sale date.");
+      return;
+    }
+    if (!scrapTypeId || !scrapTypeId.trim()) {
       setFormError("Please select a scrap material.");
       return;
     }
-    if (numQuantity <= 0) {
+    if (!unit || !unit.trim()) {
+      setFormError("Please select a unit.");
+      return;
+    }
+    const rawQty = typeof quantity === "string" ? quantity.trim() : "";
+    const parsedQty = Number(rawQty);
+    if (!rawQty || isNaN(parsedQty) || parsedQty <= 0) {
       setFormError("Quantity must be greater than 0.");
       return;
     }
@@ -167,15 +177,19 @@ export default function SalesPage() {
       );
       return;
     }
-    if (numRate <= 0) {
+    const rawRt = typeof rate === "string" ? rate.trim() : "";
+    const parsedRate = Number(rawRt);
+    if (!rawRt || isNaN(parsedRate) || parsedRate <= 0) {
       setFormError("Rate per unit must be greater than 0.");
       return;
     }
-    if (numReceived < 0) {
+    const rawReceived = typeof amountReceived === "string" ? amountReceived.trim() : "";
+    const parsedReceived = rawReceived === "" ? 0 : Number(rawReceived);
+    if (isNaN(parsedReceived) || parsedReceived < 0) {
       setFormError("Amount received cannot be negative.");
       return;
     }
-    if (numReceived > calculatedTotal) {
+    if (parsedReceived > calculatedTotal) {
       setFormError("Amount received cannot exceed the sale total.");
       return;
     }

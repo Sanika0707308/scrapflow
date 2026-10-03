@@ -33,14 +33,15 @@ export async function createScrapType(input: unknown) {
 
   const rawOpening =
     data.openingStock === undefined ? new Decimal(0) : nonNegativeQuantity(data.openingStock, "openingStock");
-  const opening = isTonneUnit(data.unit) ? rawOpening.mul(1000) : rawOpening;
+  const unit = data.unit || "Tonne (MT)";
+  const opening = isTonneUnit(unit) ? rawOpening.mul(1000) : rawOpening;
 
   return prisma.$transaction(async (tx) => {
     const scrapType = await tx.scrapType.create({
       data: {
         name: trimmedName,
-        category: data.category?.trim() || null,
-        unit: data.unit,
+        category: data.category.trim(),
+        unit: unit,
         currentStock: new Decimal(0),
         notes: data.notes?.trim() || null,
       },
@@ -80,7 +81,7 @@ export async function updateScrapType(id: string, input: unknown) {
     where: { id },
     data: {
       ...(data.name !== undefined ? { name: data.name.trim() } : {}),
-      ...(data.category !== undefined ? { category: data.category.trim() || null } : {}),
+      ...(data.category !== undefined ? { category: data.category.trim() } : {}),
       ...(data.unit !== undefined ? { unit: data.unit } : {}),
       ...(data.notes !== undefined ? { notes: data.notes.trim() || null } : {}),
     },

@@ -134,26 +134,37 @@ export default function PurchasesPage() {
     setFormError(null);
     setFormSuccess(null);
 
-    if (!supplierId) {
+    if (!supplierId || !supplierId.trim()) {
       setFormError("Please select a supplier company.");
       return;
     }
-    if (!scrapTypeId) {
+    if (!purchaseDate || !purchaseDate.trim()) {
+      setFormError("Please select a purchase date.");
+      return;
+    }
+    if (!scrapTypeId || !scrapTypeId.trim()) {
       setFormError("Please select a scrap material.");
       return;
     }
-    const qty = Number(quantity);
-    if (!qty || qty <= 0) {
+    if (!unit || !unit.trim()) {
+      setFormError("Please select a unit.");
+      return;
+    }
+    const rawQty = typeof quantity === "string" ? quantity.trim() : "";
+    const qty = Number(rawQty);
+    if (!rawQty || isNaN(qty) || qty <= 0) {
       setFormError("Quantity must be greater than 0.");
       return;
     }
-    const rt = Number(rate);
-    if (!rt || rt <= 0) {
+    const rawRt = typeof rate === "string" ? rate.trim() : "";
+    const rt = Number(rawRt);
+    if (!rawRt || isNaN(rt) || rt <= 0) {
       setFormError("Rate per unit must be greater than 0.");
       return;
     }
-    const paid = Number(amountPaid) || 0;
-    if (paid < 0) {
+    const rawPaid = typeof amountPaid === "string" ? amountPaid.trim() : "";
+    const paid = rawPaid === "" ? 0 : Number(rawPaid);
+    if (isNaN(paid) || paid < 0) {
       setFormError("Amount paid cannot be negative.");
       return;
     }

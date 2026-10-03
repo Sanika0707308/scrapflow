@@ -24,27 +24,16 @@ type StockMovement = {
   scrapType: { unit: string };
 };
 
-const EXAMPLE_SCRAP_TYPES = [
-  "Iron",
-  "Steel",
-  "Copper",
-  "Aluminium",
-  "Brass",
-  "Plastic",
-  "Paper",
-  "E-waste",
-  "Other",
-];
-
-const COMMON_CATEGORIES = [
+const CATEGORIES = [
   "Ferrous Metal",
   "Non-Ferrous Metal",
   "Plastic",
   "Paper & Cardboard",
-  "Electronic Waste",
-  "Battery & Lead",
-  "Rubber & Tyre",
-  "General / Other",
+  "E-waste",
+  "Battery",
+  "Rubber",
+  "Glass",
+  "Other",
 ];
 
 export default function StockPage() {
@@ -61,20 +50,19 @@ export default function StockPage() {
     text: string;
   } | null>(null);
 
-  // Form & Edit state
+  // Form & Edit state (ONLY Scrap Type Name and Category)
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     category: "",
-    unit: "Tonne (MT)",
-    openingStock: "",
-    notes: "",
   });
   const [fieldErrors, setFieldErrors] = useState<{
     name?: string;
+    category?: string;
   }>({});
   const [touched, setTouched] = useState<{
     name?: boolean;
+    category?: boolean;
   }>({});
   const [formMessage, setFormMessage] = useState<{
     type: "success" | "error";
@@ -86,9 +74,6 @@ export default function StockPage() {
     setFormData({
       name: "",
       category: "",
-      unit: "Tonne (MT)",
-      openingStock: "",
-      notes: "",
     });
     setFieldErrors({});
     setTouched({});
@@ -132,17 +117,28 @@ export default function StockPage() {
     };
   }, [loadData]);
 
-  // Client-side name validation (empty & duplicate check)
+  // Unicode-safe normalization and validation
   const validateName = (name: string, currentEditingId: string | null): string | undefined => {
     const trimmed = name.trim();
     if (!trimmed) {
       return "Scrap type name is required.";
     }
+    const normInput = trimmed.normalize("NFC").toLowerCase();
     const duplicate = scrapTypes.find(
-      (s) => s.id !== currentEditingId && s.name.trim().toLowerCase() === trimmed.toLowerCase()
+      (s) =>
+        s.id !== currentEditingId &&
+        s.name.trim().normalize("NFC").toLowerCase() === normInput
     );
     if (duplicate) {
       return `A scrap type named "${duplicate.name}" already exists.`;
+    }
+    return undefined;
+  };
+
+  const validateCategory = (category: string): string | undefined => {
+    const trimmed = category.trim();
+    if (!trimmed) {
+      return "Category is required.";
     }
     return undefined;
   };
@@ -155,14 +151,19 @@ export default function StockPage() {
     }
   };
 
+  const handleCategoryChange = (val: string) => {
+    setFormData((prev) => ({ ...prev, category: val }));
+    if (touched.category || val.trim().length > 0) {
+      const err = validateCategory(val);
+      setFieldErrors((prev) => ({ ...prev, category: err }));
+    }
+  };
+
   const startEdit = (scrapType: ScrapType) => {
     setEditingId(scrapType.id);
     setFormData({
       name: scrapType.name,
       category: scrapType.category || "",
-      unit: scrapType.unit || "Tonne (MT)",
-      openingStock: "",
-      notes: scrapType.notes || "",
     });
     setFieldErrors({});
     setTouched({});
@@ -179,27 +180,22 @@ export default function StockPage() {
     setFormMessage(null);
   };
 
-  const handleSelectExample = (exampleName: string) => {
-    const isAlreadyAdded = scrapTypes.some(
-      (s) => s.name.trim().toLowerCase() === exampleName.trim().toLowerCase()
-    );
-    if (isAlreadyAdded) return;
-
-    setFormData((prev) => ({ ...prev, name: exampleName }));
-    setFieldErrors((prev) => ({ ...prev, name: undefined }));
-    setTouched((prev) => ({ ...prev, name: true }));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setTouched({ name: true });
+    setTouched({ name: true, category: true });
 
-    const nameError = validateName(formData.name, editingId);
-    if (nameError) {
-      setFieldErrors({ name: nameError });
+    const nameErr = validateName(formData.name, editingId);
+    const catErr = validateCategory(formData.category);
+
+    const newErrors: { name?: string; category?: string } = {};
+    if (nameErr) newErrors.name = nameErr;
+    if (catErr) newErrors.category = catErr;
+    setFieldErrors(newErrors);
+
+    if (nameErr || catErr) {
       setFormMessage({
         type: "error",
-        text: nameError,
+        text: nameErr || catErr || "Please fill in all required fields.",
       });
       return;
     }
@@ -209,9 +205,7 @@ export default function StockPage() {
     setDeleteStatus(null);
 
     const trimmedName = formData.name.trim();
-    const trimmedCategory = formData.category.trim() || undefined;
-    const trimmedUnit = formData.unit.trim() || "Tonne (MT)";
-    const trimmedNotes = formData.notes.trim() || undefined;
+    const trimmedCategory = formData.category.trim();
 
     try {
       if (editingId) {
@@ -222,8 +216,6 @@ export default function StockPage() {
           body: JSON.stringify({
             name: trimmedName,
             category: trimmedCategory,
-            unit: trimmedUnit,
-            notes: trimmedNotes,
           }),
         });
 
@@ -240,19 +232,12 @@ export default function StockPage() {
         await loadData();
       } else {
         // Add new scrap type
-        const rawOpening = formData.openingStock.trim();
-        const openingStock =
-          rawOpening && !isNaN(Number(rawOpening)) ? Number(rawOpening) : undefined;
-
         const res = await fetch("/api/scrap-types", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: trimmedName,
             category: trimmedCategory,
-            unit: trimmedUnit,
-            openingStock,
-            notes: trimmedNotes,
           }),
         });
 
@@ -334,7 +319,7 @@ export default function StockPage() {
   const rows: FeatureRow[] = scrapTypes.map((s) => ({
     id: s.id,
     title: s.name,
-    subtitle: `${s.category ? `${s.category} · ` : ""}Unit: ${s.unit}${s.notes ? ` · (${s.notes})` : ""}`,
+    subtitle: s.category ? `Category: ${s.category}` : "Uncategorized",
     amount: formatQuantity(s.currentStock),
     status: Number(s.currentStock) > 0 ? "In Stock" : "Out of Stock",
     tone: Number(s.currentStock) > 0 ? "green" : "red",
@@ -451,7 +436,7 @@ export default function StockPage() {
             </h2>
             <p>
               {editingId
-                ? "Update material details below and click Update scrap type."
+                ? "Update material details below and click Update Scrap Type."
                 : "Enter details below to register a scrap material for purchasing and selling."}
             </p>
           </div>
@@ -467,61 +452,11 @@ export default function StockPage() {
           )}
         </div>
 
-        {/* Quick Example Suggestions when creating */}
-        {!editingId && (
-          <div style={{ marginTop: "16px", marginBottom: "8px" }}>
-            <span
-              style={{
-                fontSize: "11px",
-                color: "#6e827d",
-                fontWeight: 600,
-                display: "block",
-                marginBottom: "8px",
-              }}
-            >
-              Quick suggestions (click to auto-fill):
-            </span>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-              {EXAMPLE_SCRAP_TYPES.map((name) => {
-                const isAlreadyAdded = scrapTypes.some(
-                  (s) => s.name.trim().toLowerCase() === name.trim().toLowerCase()
-                );
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => handleSelectExample(name)}
-                    disabled={isAlreadyAdded}
-                    title={
-                      isAlreadyAdded
-                        ? `"${name}" is already registered`
-                        : `Click to select "${name}"`
-                    }
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: "14px",
-                      fontSize: "11px",
-                      fontWeight: 500,
-                      border: `1px solid ${isAlreadyAdded ? "#e5ede8" : "#c9ded7"}`,
-                      backgroundColor: isAlreadyAdded ? "#f6f8f7" : "#f0f7f4",
-                      color: isAlreadyAdded ? "#9aa7a3" : "#1b4a40",
-                      cursor: isAlreadyAdded ? "not-allowed" : "pointer",
-                      transition: "all 0.15s ease",
-                    }}
-                  >
-                    {name} {isAlreadyAdded ? "✓" : "+"}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} noValidate>
           <div className={styles.formGrid}>
             <label>
               <span>
-                Scrap type name <span style={{ color: "#b45e4d" }}>*</span>
+                Scrap Type Name <span style={{ color: "#b45e4d" }}>*</span>
               </span>
               <input
                 type="text"
@@ -532,7 +467,7 @@ export default function StockPage() {
                   const err = validateName(formData.name, editingId);
                   setFieldErrors((prev) => ({ ...prev, name: err }));
                 }}
-                placeholder="e.g. Iron, Steel, Copper, Aluminium, Brass"
+                placeholder="e.g. Copper, Brass, Cast Iron, लोखंड, तांबे, पितळ"
                 style={fieldErrors.name ? { borderColor: "#b45e4d" } : undefined}
               />
               {fieldErrors.name ? (
@@ -541,67 +476,44 @@ export default function StockPage() {
                 </span>
               ) : (
                 <span style={{ color: "#8a9b96", fontSize: "10px", marginTop: "2px" }}>
-                  Unique material name (e.g. Copper, Brass, Cast Iron)
+                  Enter material name in English, Marathi, or local language
                 </span>
               )}
             </label>
 
             <label>
-              <span>Category (Optional)</span>
-              <input
-                type="text"
-                list="category-suggestions"
-                value={formData.category}
-                onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
-                placeholder="e.g. Ferrous Metal, Non-Ferrous Metal, Plastic"
-              />
-              <datalist id="category-suggestions">
-                {COMMON_CATEGORIES.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </label>
-
-            <label>
               <span>
-                Standard Unit <span style={{ color: "#b45e4d" }}>*</span>
+                Category <span style={{ color: "#b45e4d" }}>*</span>
               </span>
               <select
-                value={formData.unit}
-                onChange={(e) => setFormData((prev) => ({ ...prev, unit: e.target.value }))}
+                value={formData.category}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                onBlur={() => {
+                  setTouched((prev) => ({ ...prev, category: true }));
+                  const err = validateCategory(formData.category);
+                  setFieldErrors((prev) => ({ ...prev, category: err }));
+                }}
+                style={fieldErrors.category ? { borderColor: "#b45e4d" } : undefined}
               >
-                <option value="Tonne (MT)">Tonne (MT) — Commercial wholesale scrap</option>
-                <option value="Kilogram (kg)">Kilogram (kg) — Retail / loose scrap</option>
+                <option value="">Select category</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+                {formData.category && !CATEGORIES.includes(formData.category) && (
+                  <option value={formData.category}>{formData.category}</option>
+                )}
               </select>
-            </label>
-
-            {!editingId && (
-              <label>
-                <span>Opening Stock (Optional)</span>
-                <input
-                  type="number"
-                  step="any"
-                  min="0"
-                  value={formData.openingStock}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, openingStock: e.target.value }))
-                  }
-                  placeholder="0.00"
-                />
-                <span style={{ color: "#8a9b96", fontSize: "10px", marginTop: "2px" }}>
-                  Initial stock on hand in {formData.unit}
+              {fieldErrors.category ? (
+                <span style={{ color: "#b45e4d", fontSize: "11px", marginTop: "2px" }}>
+                  {fieldErrors.category}
                 </span>
-              </label>
-            )}
-
-            <label style={{ gridColumn: editingId ? "1 / -1" : "auto" }}>
-              <span>Notes (Optional)</span>
-              <input
-                type="text"
-                value={formData.notes}
-                onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-                placeholder="Grade, quality specs, or storage location"
-              />
+              ) : (
+                <span style={{ color: "#8a9b96", fontSize: "10px", marginTop: "2px" }}>
+                  Select the scrap category
+                </span>
+              )}
             </label>
           </div>
 
@@ -615,8 +527,8 @@ export default function StockPage() {
               {isSubmitting
                 ? "Saving..."
                 : editingId
-                ? "Update scrap type"
-                : "Save scrap type"}
+                ? "Update Scrap Type"
+                : "Save Scrap Type"}
             </button>
             {editingId && (
               <button
