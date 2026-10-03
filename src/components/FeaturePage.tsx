@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ArrowDownLeft, ArrowUpRight, BarChart3, Bell, Boxes, Building2, ChevronDown, CircleDollarSign, LayoutDashboard, Menu, Pencil, Settings2, Trash2, X } from "lucide-react";
+import { ArrowDownLeft, BarChart3, Bell, Boxes, Building2, ChevronDown, CircleDollarSign, LayoutDashboard, Menu, Pencil, Receipt, Settings2, Trash2, X } from "lucide-react";
 import styles from "./FeaturePage.module.css";
 import { emptyBusinessProfile, readBusinessProfile, saveBusinessProfile } from "@/lib/business-profile";
 
@@ -12,10 +12,9 @@ const navigation = [
   ["/companies", "Companies", Building2],
   ["/stock", "Scrap stock", Boxes],
   ["/purchases", "Buy scrap", ArrowDownLeft],
-  ["/sales", "Sell scrap", ArrowUpRight],
+  ["/quick-bill", "Quick bill", Receipt],
   ["/payments", "Payments", CircleDollarSign],
   ["/udhari", "Udhari / Outstanding", CircleDollarSign],
-  ["/quick-bill", "Quick bill", CircleDollarSign],
   ["/reports", "Reports", BarChart3],
   ["/settings", "Settings", Settings2],
 ] as const;
@@ -28,7 +27,7 @@ export function FeaturePage({ active, eyebrow, title, description, actionLabel, 
     <aside className={`${styles.sidebar} ${mobileNavOpen ? styles.sidebarOpen : ""}`}>
       <div className={styles.brandRow}><div className={styles.brandMark}>S</div><div><strong>ScrapFlow</strong><span>Business desk</span></div><button className={styles.closeNav} onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={18} /></button></div>
       <div className={styles.workspaceSwitch}><span className={styles.workspaceDot} />{profile.businessName} <ChevronDown size={15} /></div>
-      <nav className={styles.nav}><p className={styles.navLabel}>Overview</p>{navigation.slice(0, 3).map(([href, label, Icon]) => <NavItem key={href} href={href} label={label} Icon={Icon} active={active === href} />)}<p className={styles.navLabel}>Daily work</p>{navigation.slice(3, 8).map(([href, label, Icon]) => <NavItem key={href} href={href} label={label} Icon={Icon} active={active === href} />)}<p className={styles.navLabel}>Insights</p>{navigation.slice(8).map(([href, label, Icon]) => <NavItem key={href} href={href} label={label} Icon={Icon} active={active === href} />)}</nav>
+      <nav className={styles.nav}><p className={styles.navLabel}>Overview</p>{navigation.slice(0, 3).map(([href, label, Icon]) => <NavItem key={href} href={href} label={label} Icon={Icon} active={active === href} />)}<p className={styles.navLabel}>Daily work</p>{navigation.slice(3, 7).map(([href, label, Icon]) => <NavItem key={href} href={href} label={label} Icon={Icon} active={active === href} />)}<p className={styles.navLabel}>Insights</p>{navigation.slice(7).map(([href, label, Icon]) => <NavItem key={href} href={href} label={label} Icon={Icon} active={active === href} />)}</nav>
       <div className={styles.sidebarFooter}><div className={styles.avatar}>{profile.ownerName.slice(0, 2).toUpperCase()}</div><div><strong>{profile.ownerName}</strong><span>Owner</span></div><ChevronDown size={15} /></div>
     </aside>
     {mobileNavOpen && <button className={styles.scrim} onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" />}

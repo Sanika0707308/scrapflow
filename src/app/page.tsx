@@ -14,8 +14,8 @@ import {
   FileText,
   LayoutDashboard,
   Menu,
+  Receipt,
   Settings2,
-  Truck,
   X,
 } from "lucide-react";
 import styles from "./page.module.css";
@@ -258,9 +258,9 @@ export default function Home() {
             <ArrowDownLeft size={18} />
             Buy scrap
           </a>
-          <a className={styles.navItem} href="/sales">
-            <ArrowUpRight size={18} />
-            Sell scrap
+          <a className={styles.navItem} href="/quick-bill">
+            <Receipt size={18} />
+            Quick bill
           </a>
           <a className={styles.navItem} href="/payments">
             <CircleDollarSign size={18} />
@@ -269,10 +269,6 @@ export default function Home() {
           <a className={styles.navItem} href="/udhari">
             <CircleDollarSign size={18} />
             Udhari / Outstanding
-          </a>
-          <a className={styles.navItem} href="/quick-bill">
-            <CircleDollarSign size={18} />
-            Quick bill
           </a>
 
           <p className={styles.navLabel}>Insights</p>
@@ -550,16 +546,12 @@ export default function Home() {
             </div>
             <div className={styles.actionButtons}>
               <a href="/quick-bill">
-                <CircleDollarSign size={17} />
+                <Receipt size={17} />
                 Quick bill
               </a>
               <a href="/purchases">
                 <ArrowDownLeft size={17} />
                 Buy scrap
-              </a>
-              <a href="/sales">
-                <Truck size={17} />
-                Sell scrap
               </a>
               <a href="/payments">
                 <CircleDollarSign size={17} />
